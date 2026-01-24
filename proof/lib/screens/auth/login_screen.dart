@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:proof/screens/home/home_dashboard.dart';
 import 'package:provider/provider.dart';
 import 'dart:ui';
 
@@ -8,6 +9,7 @@ import '../../utils/constants.dart';
 import '../../services/preferences_service.dart';
 import 'signup_screen.dart';
 import 'pin_setup_screen.dart';
+import '../home/home_dashboard.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -102,9 +104,17 @@ class _LoginScreenState extends State<LoginScreen>
     if (success) {
       final hasPinSetup = await authProvider.hasPinSetup();
       if (!hasPinSetup) {
+        // New user - needs to setup PIN
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => const PinSetupScreen()),
         );
+      } else {
+        // Existing user - go to home screen
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const HomeDashboard()),
+        );
+        // OR if using named routes:
+        // Navigator.of(context).pushReplacementNamed('/home');
       }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -153,8 +163,8 @@ class _LoginScreenState extends State<LoginScreen>
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.light, // Android
-        statusBarBrightness: Brightness.dark, // iOS
+        statusBarIconBrightness: Brightness.light,
+        statusBarBrightness: Brightness.dark,
       ),
       child: Scaffold(
         backgroundColor: Colors.black,
@@ -172,6 +182,7 @@ class _LoginScreenState extends State<LoginScreen>
                     children: [
                       const SizedBox(height: 40),
 
+                      // Logo Icon
                       ScaleTransition(
                         scale: _scaleAnimation,
                         child: Center(
@@ -197,6 +208,7 @@ class _LoginScreenState extends State<LoginScreen>
 
                       const SizedBox(height: 30),
 
+                      // App Name
                       Text(
                         AppStrings.appName,
                         textAlign: TextAlign.center,
@@ -209,7 +221,7 @@ class _LoginScreenState extends State<LoginScreen>
 
                       const SizedBox(height: 40),
 
-                      // 🔥 Glass Card
+                      // Glass Card with Form
                       Container(
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(24),
@@ -231,9 +243,12 @@ class _LoginScreenState extends State<LoginScreen>
                               padding: const EdgeInsets.all(28),
                               child: Column(
                                 children: [
+                                  // Email Field
                                   TextFormField(
                                     controller: _emailController,
                                     style: const TextStyle(color: Colors.white),
+                                    keyboardType: TextInputType.emailAddress,
+                                    textInputAction: TextInputAction.next,
                                     decoration: _inputDecoration(
                                       label: AppStrings.email,
                                       icon: Icons.email_outlined,
@@ -246,10 +261,13 @@ class _LoginScreenState extends State<LoginScreen>
 
                                   const SizedBox(height: 20),
 
+                                  // Password Field
                                   TextFormField(
                                     controller: _passwordController,
                                     obscureText: _obscurePassword,
                                     style: const TextStyle(color: Colors.white),
+                                    textInputAction: TextInputAction.done,
+                                    onFieldSubmitted: (_) => _handleLogin(),
                                     decoration: _inputDecoration(
                                       label: AppStrings.password,
                                       icon: Icons.lock_outline,
@@ -275,6 +293,7 @@ class _LoginScreenState extends State<LoginScreen>
 
                                   const SizedBox(height: 30),
 
+                                  // Login Button
                                   Consumer<AuthProvider>(
                                     builder: (_, auth, __) {
                                       return GestureDetector(
@@ -299,8 +318,14 @@ class _LoginScreenState extends State<LoginScreen>
                                             ],
                                           ),
                                           child: auth.isLoading
-                                              ? const CircularProgressIndicator(
-                                                  color: Colors.black,
+                                              ? const SizedBox(
+                                                  height: 24,
+                                                  width: 24,
+                                                  child:
+                                                      CircularProgressIndicator(
+                                                        color: Colors.black,
+                                                        strokeWidth: 3,
+                                                      ),
                                                 )
                                               : const Text(
                                                   AppStrings.login,
@@ -324,6 +349,7 @@ class _LoginScreenState extends State<LoginScreen>
 
                       const SizedBox(height: 30),
 
+                      // Sign Up Link
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [

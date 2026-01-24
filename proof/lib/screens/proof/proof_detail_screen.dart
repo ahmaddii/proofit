@@ -13,6 +13,9 @@ import '../../services/encryption_service.dart';
 import '../../services/pdf_service.dart';
 import '../../services/preferences_service.dart';
 import '../../utils/constants.dart';
+import 'dart:io';
+import 'package:audioplayers/audioplayers.dart';
+import 'package:path_provider/path_provider.dart';
 import 'pin_verification_screen.dart';
 
 class ProofDetailScreen extends StatefulWidget {
@@ -38,6 +41,13 @@ class _ProofDetailScreenState extends State<ProofDetailScreen> {
   bool _isLoadingText = false;
   bool _isGeneratingPdf = false;
 
+  // Audio Player
+  final AudioPlayer _audioPlayer = AudioPlayer();
+  bool _isPlayingAudio = false;
+  bool _isLoadingAudio = false;
+  Duration _audioDuration = Duration.zero;
+  Duration _audioPosition = Duration.zero;
+
   // Neon colors
   static const neonGreen = Color(0xFF00FF7F);
   static const neonRed = Color(0xFFFF4C4C);
@@ -48,6 +58,36 @@ class _ProofDetailScreenState extends State<ProofDetailScreen> {
     _checkPinRequirement();
     // Save last viewed proof ID
     PreferencesService.setLastProofId(widget.proofId);
+
+    // Audio listeners
+    _audioPlayer.onPlayerStateChanged.listen((state) {
+      if (mounted) {
+        setState(() => _isPlayingAudio = state == PlayerState.playing);
+      }
+    });
+
+    _audioPlayer.onDurationChanged.listen((d) {
+      if (mounted) setState(() => _audioDuration = d);
+    });
+
+    _audioPlayer.onPositionChanged.listen((p) {
+      if (mounted) setState(() => _audioPosition = p);
+    });
+
+    _audioPlayer.onPlayerComplete.listen((_) {
+      if (mounted) {
+        setState(() {
+          _isPlayingAudio = false;
+          _audioPosition = Duration.zero;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _audioPlayer.dispose();
+    super.dispose();
   }
 
   Future<void> _loadLocationName(double latitude, double longitude) async {
@@ -119,6 +159,49 @@ class _ProofDetailScreenState extends State<ProofDetailScreen> {
           _isLoadingText = false;
         });
       }
+    }
+  }
+
+  Future<void> _playAudio(String url, String iv) async {
+    if (_isPlayingAudio) {
+      await _audioPlayer.pause();
+      return;
+    }
+
+    // Resume if paused and source already set
+    if (_audioPosition > Duration.zero && _audioPosition < _audioDuration) {
+      await _audioPlayer.resume();
+      return;
+    }
+
+    setState(() => _isLoadingAudio = true);
+
+    try {
+      final decryptedBytes = await _proofService.downloadAndDecryptAudio(
+        url,
+        iv,
+      );
+
+      if (decryptedBytes == null) throw Exception('Failed to decrypt audio');
+
+      final tempDir = await getTemporaryDirectory();
+      final tempFile = File(
+        '${tempDir.path}/temp_audio_${DateTime.now().millisecondsSinceEpoch}.m4a',
+      );
+      await tempFile.writeAsBytes(decryptedBytes);
+
+      await _audioPlayer.play(DeviceFileSource(tempFile.path));
+    } catch (e) {
+      print('Error playing audio: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to play audio. Decryption error.'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoadingAudio = false);
     }
   }
 
@@ -645,16 +728,108 @@ class _ProofDetailScreenState extends State<ProofDetailScreen> {
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: Colors.white.withOpacity(0.1)),
                 ),
-                child: Row(
+                child: Column(
                   children: [
-                    Icon(Icons.audiotrack, color: neonGreen, size: 20),
-                    const SizedBox(width: 12),
-                    const Expanded(
-                      child: Text(
-                        'Encrypted audio file attached',
-                        style: TextStyle(color: Colors.white, fontSize: 14),
-                      ),
+                    Row(
+                      children: [
+                        CircleAvatar(
+                          backgroundColor: neonGreen.withOpacity(0.2),
+                          child: IconButton(
+                            icon: _isLoadingAudio
+                                ? SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: neonGreen,
+                                    ),
+                                  )
+                                : Icon(
+                                    _isPlayingAudio
+                                        ? Icons.pause
+                                        : Icons.play_arrow,
+                                    color: neonGreen,
+                                  ),
+                            onPressed:
+                                _isLoadingAudio || proof.encryptionIv == null
+                                ? null
+                                : () => _playAudio(
+                                    proof.audioUrl!,
+                                    proof.encryptionIv!,
+                                  ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            _isPlayingAudio ? 'Playing...' : 'Audio Proof',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                        if (proof.encryptionIv == null)
+                          Tooltip(
+                            message: 'Decryption key missing',
+                            child: Icon(Icons.error, color: neonRed, size: 20),
+                          ),
+                      ],
                     ),
+                    if (_audioDuration > Duration.zero)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Row(
+                          children: [
+                            Text(
+                              _formatDuration(_audioPosition),
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.5),
+                                fontSize: 12,
+                              ),
+                            ),
+                            Expanded(
+                              child: SliderTheme(
+                                data: SliderTheme.of(context).copyWith(
+                                  trackHeight: 2,
+                                  thumbShape: const RoundSliderThumbShape(
+                                    enabledThumbRadius: 6,
+                                  ),
+                                  overlayShape: const RoundSliderOverlayShape(
+                                    overlayRadius: 12,
+                                  ),
+                                  activeTrackColor: neonGreen,
+                                  inactiveTrackColor: Colors.white.withOpacity(
+                                    0.1,
+                                  ),
+                                  thumbColor: neonGreen,
+                                ),
+                                child: Slider(
+                                  value: _audioPosition.inSeconds
+                                      .toDouble()
+                                      .clamp(
+                                        0,
+                                        _audioDuration.inSeconds.toDouble(),
+                                      ),
+                                  max: _audioDuration.inSeconds.toDouble(),
+                                  onChanged: (v) {
+                                    _audioPlayer.seek(
+                                      Duration(seconds: v.toInt()),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ),
+                            Text(
+                              _formatDuration(_audioDuration),
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.5),
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -778,5 +953,12 @@ class _ProofDetailScreenState extends State<ProofDetailScreen> {
         ),
       ),
     );
+  }
+
+  String _formatDuration(Duration duration) {
+    String twoDigits(int n) => n.toString().padLeft(2, '0');
+    final minutes = twoDigits(duration.inMinutes.remainder(60));
+    final seconds = twoDigits(duration.inSeconds.remainder(60));
+    return '$minutes:$seconds';
   }
 }

@@ -60,6 +60,21 @@ class _HomeDashboardState extends State<HomeDashboard>
     super.dispose();
   }
 
+  void _showSuccessSnackbar(BuildContext context) {
+    debugPrint('HomeDashboard: _showSuccessSnackbar called');
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text(
+          'Proof created successfully!',
+          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+        ),
+        backgroundColor: kNeonGreen,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final userEmail = context.select<AuthProvider, String>(
@@ -203,12 +218,20 @@ class _HomeDashboardState extends State<HomeDashboard>
                         _DashboardCard(
                           icon: Icons.add_circle_outline,
                           title: AppStrings.createProof,
-                          onTap: () {
-                            Navigator.of(context).push(
+                          onTap: () async {
+                            final result = await Navigator.of(context).push(
                               MaterialPageRoute(
                                 builder: (_) => const CreateProofScreen(),
                               ),
                             );
+
+                            if (result == true && context.mounted) {
+                              debugPrint(
+                                'HomeDashboard: Proof created successfully, showing snackbar',
+                              );
+                              _showSuccessSnackbar(context);
+                              debugPrint('HomeDashboard: Snackbar shown');
+                            }
                           },
                           delay: 0,
                         ),

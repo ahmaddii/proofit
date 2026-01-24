@@ -1,9 +1,11 @@
 import 'dart:io';
+import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:record/record.dart';
+import 'package:audioplayers/audioplayers.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../../providers/proof_provider.dart';
@@ -27,13 +29,23 @@ class _CreateProofScreenState extends State<CreateProofScreen>
   final List<File> _mediaFiles = [];
   File? _audioFile;
   final _imagePicker = ImagePicker();
-  final _audioRecorder = AudioRecorder();
+  late final AudioRecorder _audioRecorder;
+  late final AudioPlayer _audioPlayer;
 
   bool _isRecording = false;
   bool _isUploading = false;
+  bool _isPlaying = false;
   bool _includeLocation = true;
   double? _latitude;
   double? _longitude;
+
+  // Recording UI state
+  Duration _recordingDuration = Duration.zero;
+  Duration _playbackDuration = Duration.zero;
+  Duration _totalDuration = Duration.zero;
+  Timer? _recordingTimer;
+  late AnimationController _pulseController;
+  late Animation<double> _pulseAnimation;
 
   final _locationService = LocationService();
 
@@ -48,6 +60,9 @@ class _CreateProofScreenState extends State<CreateProofScreen>
   void initState() {
     super.initState();
 
+    _audioRecorder = AudioRecorder();
+    _audioPlayer = AudioPlayer();
+
     _fadeController = AnimationController(
       duration: const Duration(milliseconds: 800),
       vsync: this,
@@ -59,6 +74,43 @@ class _CreateProofScreenState extends State<CreateProofScreen>
     ).animate(CurvedAnimation(parent: _fadeController, curve: Curves.easeIn));
 
     _fadeController.forward();
+
+    // Pulse animation for recording indicator
+    _pulseController = AnimationController(
+      duration: const Duration(milliseconds: 1000),
+      vsync: this,
+    );
+
+    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.3).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
+
+    _pulseController.repeat(reverse: true);
+
+    // Audio player listeners
+    _audioPlayer.onPlayerStateChanged.listen((state) {
+      if (mounted) {
+        setState(() {
+          _isPlaying = state == PlayerState.playing;
+        });
+      }
+    });
+
+    _audioPlayer.onPositionChanged.listen((position) {
+      if (mounted) {
+        setState(() {
+          _playbackDuration = position;
+        });
+      }
+    });
+
+    _audioPlayer.onDurationChanged.listen((duration) {
+      if (mounted) {
+        setState(() {
+          _totalDuration = duration;
+        });
+      }
+    });
   }
 
   @override
@@ -66,9 +118,32 @@ class _CreateProofScreenState extends State<CreateProofScreen>
     _titleController.dispose();
     _descriptionController.dispose();
     _textContentController.dispose();
-    _audioRecorder.dispose();
+
+    // Safely dispose audio resources
+    _disposeAudioResources();
+
     _fadeController.dispose();
+    _pulseController.dispose();
+    _recordingTimer?.cancel();
     super.dispose();
+  }
+
+  Future<void> _disposeAudioResources() async {
+    try {
+      if (await _audioRecorder.isRecording()) {
+        await _audioRecorder.stop();
+      }
+      _audioRecorder.dispose();
+    } catch (e) {
+      debugPrint('Error disposing audio recorder: $e');
+    }
+
+    try {
+      await _audioPlayer.stop();
+      _audioPlayer.dispose();
+    } catch (e) {
+      debugPrint('Error disposing audio player: $e');
+    }
   }
 
   Future<void> _pickImages() async {
@@ -99,32 +174,93 @@ class _CreateProofScreenState extends State<CreateProofScreen>
     }
   }
 
-  Future<void> _toggleRecording() async {
-    if (_isRecording) {
-      // Stop recording
+  void _startRecordingTimer() {
+    _recordingDuration = Duration.zero;
+    _recordingTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      setState(() {
+        _recordingDuration = Duration(seconds: timer.tick);
+      });
+    });
+  }
+
+  void _stopRecordingTimer() {
+    _recordingTimer?.cancel();
+    _recordingTimer = null;
+  }
+
+  String _formatDuration(Duration duration) {
+    String twoDigits(int n) => n.toString().padLeft(2, '0');
+    final minutes = twoDigits(duration.inMinutes.remainder(60));
+    final seconds = twoDigits(duration.inSeconds.remainder(60));
+    return '$minutes:$seconds';
+  }
+
+  Future<void> _startRecording() async {
+    // Request microphone permission
+    final status = await Permission.microphone.request();
+    if (!status.isGranted) {
+      _showError('Microphone permission denied');
+      return;
+    }
+
+    try {
+      final dir = await getTemporaryDirectory();
+      final path =
+          '${dir.path}/audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
+
+      await _audioRecorder.start(const RecordConfig(), path: path);
+
+      setState(() {
+        _isRecording = true;
+        _audioFile = null; // Clear previous recording
+      });
+
+      _startRecordingTimer();
+    } catch (e) {
+      _showError('Failed to start recording: $e');
+    }
+  }
+
+  Future<void> _stopRecording() async {
+    try {
       final path = await _audioRecorder.stop();
+      _stopRecordingTimer();
+
       if (path != null) {
         setState(() {
           _audioFile = File(path);
           _isRecording = false;
+          _totalDuration = _recordingDuration;
         });
       }
-    } else {
-      // Request microphone permission
-      if (await Permission.microphone.request().isGranted) {
-        // Start recording
-        final dir = await getTemporaryDirectory();
-        final path =
-            '${dir.path}/recording_${DateTime.now().millisecondsSinceEpoch}.m4a';
+    } catch (e) {
+      _showError('Failed to stop recording: $e');
+      setState(() {
+        _isRecording = false;
+      });
+    }
+  }
 
-        await _audioRecorder.start(const RecordConfig(), path: path);
+  Future<void> _cancelRecording() async {
+    await _audioRecorder.stop();
+    _stopRecordingTimer();
+    setState(() {
+      _isRecording = false;
+      _recordingDuration = Duration.zero;
+    });
+  }
 
-        setState(() {
-          _isRecording = true;
-        });
+  Future<void> _togglePlayback() async {
+    if (_audioFile == null) return;
+
+    try {
+      if (_isPlaying) {
+        await _audioPlayer.pause();
       } else {
-        _showError('Microphone permission denied');
+        await _audioPlayer.play(DeviceFileSource(_audioFile!.path));
       }
+    } catch (e) {
+      _showError('Failed to play audio: $e');
     }
   }
 
@@ -175,20 +311,8 @@ class _CreateProofScreenState extends State<CreateProofScreen>
     if (!mounted) return;
 
     if (success) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text(
-            'Proof created successfully',
-            style: TextStyle(color: Colors.black, fontWeight: FontWeight.w600),
-          ),
-          backgroundColor: neonGreen,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      );
-      Navigator.of(context).pop();
+      // Return true to indicate success to previous screen
+      Navigator.of(context).pop(true);
     } else {
       _showError(proofProvider.errorMessage ?? 'Failed to create proof');
     }
@@ -216,6 +340,262 @@ class _CreateProofScreenState extends State<CreateProofScreen>
           color: neonGreen.withOpacity(0.7),
           letterSpacing: 1,
         ),
+      ),
+    );
+  }
+
+  // WhatsApp-style voice message recorder
+  Widget _buildVoiceRecorder() {
+    if (_isRecording) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(color: neonRed.withOpacity(0.3)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Cancel button
+            GestureDetector(
+              onTap: _cancelRecording,
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.delete_outline,
+                  color: neonRed,
+                  size: 20,
+                ),
+              ),
+            ),
+
+            const SizedBox(width: 12),
+
+            // Pulsing red dot
+            ScaleTransition(
+              scale: _pulseAnimation,
+              child: Container(
+                width: 12,
+                height: 12,
+                decoration: BoxDecoration(
+                  color: neonRed,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: neonRed.withOpacity(0.6),
+                      blurRadius: 8,
+                      spreadRadius: 2,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(width: 12),
+
+            // Recording duration
+            Text(
+              _formatDuration(_recordingDuration),
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                fontFeatures: [FontFeature.tabularFigures()],
+              ),
+            ),
+
+            const SizedBox(width: 8),
+
+            // Slide to cancel text
+            Flexible(
+              child: Text(
+                '< Slide to cancel',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.5),
+                  fontSize: 13,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+
+            const SizedBox(width: 12),
+
+            // Stop button
+            GestureDetector(
+              onTap: _stopRecording,
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: neonGreen,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: neonGreen.withOpacity(0.4),
+                      blurRadius: 12,
+                      spreadRadius: 2,
+                    ),
+                  ],
+                ),
+                child: const Icon(Icons.check, color: Colors.black, size: 24),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Not recording - show record button
+    return GestureDetector(
+      onTap: _startRecording,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+        decoration: BoxDecoration(
+          color: neonGreen.withOpacity(0.15),
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(color: neonGreen, width: 2),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.mic, color: neonGreen, size: 24),
+            const SizedBox(width: 12),
+            Flexible(
+              child: Text(
+                'Hold to Record Voice',
+                style: TextStyle(
+                  color: neonGreen,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Recorded audio preview (WhatsApp style)
+  Widget _buildAudioPreview() {
+    if (_audioFile == null) return const SizedBox.shrink();
+
+    final progress = _totalDuration.inMilliseconds > 0
+        ? _playbackDuration.inMilliseconds / _totalDuration.inMilliseconds
+        : 0.0;
+
+    return Container(
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: neonGreen.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: neonGreen.withOpacity(0.3)),
+      ),
+      child: Row(
+        children: [
+          // Play/Pause button
+          GestureDetector(
+            onTap: _togglePlayback,
+            child: Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: neonGreen,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                _isPlaying ? Icons.pause : Icons.play_arrow,
+                color: Colors.black,
+                size: 20,
+              ),
+            ),
+          ),
+
+          const SizedBox(width: 12),
+
+          // Waveform and progress
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Waveform with progress
+                Stack(
+                  children: [
+                    // Background waveform
+                    Row(
+                      children: List.generate(
+                        30,
+                        (index) => Container(
+                          width: 3,
+                          height: (index % 5 + 1) * 4.0,
+                          margin: const EdgeInsets.only(right: 2),
+                          decoration: BoxDecoration(
+                            color: neonGreen.withOpacity(0.3),
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                      ),
+                    ),
+                    // Progress overlay
+                    ClipRect(
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        widthFactor: progress.clamp(0.0, 1.0),
+                        child: Row(
+                          children: List.generate(
+                            30,
+                            (index) => Container(
+                              width: 3,
+                              height: (index % 5 + 1) * 4.0,
+                              margin: const EdgeInsets.only(right: 2),
+                              decoration: BoxDecoration(
+                                color: neonGreen,
+                                borderRadius: BorderRadius.circular(2),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _isPlaying
+                      ? _formatDuration(_playbackDuration)
+                      : _formatDuration(_totalDuration),
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.7),
+                    fontSize: 12,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(width: 8),
+
+          // Delete button
+          IconButton(
+            icon: Icon(Icons.delete_outline, color: neonRed),
+            onPressed: () {
+              _audioPlayer.stop();
+              setState(() {
+                _audioFile = null;
+                _recordingDuration = Duration.zero;
+                _playbackDuration = Duration.zero;
+                _totalDuration = Duration.zero;
+              });
+            },
+          ),
+        ],
       ),
     );
   }
@@ -471,63 +851,11 @@ class _CreateProofScreenState extends State<CreateProofScreen>
                   ),
                 ],
 
-                // Audio Evidence Section
+                // Audio Evidence Section (WhatsApp Style)
                 _buildSectionHeader('Audio Evidence'),
 
-                ElevatedButton.icon(
-                  onPressed: _toggleRecording,
-                  icon: Icon(_isRecording ? Icons.stop : Icons.mic),
-                  label: Text(_isRecording ? 'Stop Recording' : 'Record Audio'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _isRecording
-                        ? neonRed
-                        : neonGreen.withOpacity(0.15),
-                    foregroundColor: _isRecording ? Colors.black : neonGreen,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      side: BorderSide(
-                        color: _isRecording ? neonRed : neonGreen,
-                        width: 2,
-                      ),
-                    ),
-                  ),
-                ),
-
-                if (_audioFile != null) ...[
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: neonGreen.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: neonGreen.withOpacity(0.3)),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.check_circle, color: neonGreen),
-                        const SizedBox(width: 12),
-                        const Expanded(
-                          child: Text(
-                            'Audio recorded',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                        IconButton(
-                          icon: Icon(Icons.delete_outline, color: neonRed),
-                          onPressed: () {
-                            setState(() {
-                              _audioFile = null;
-                            });
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+                _buildVoiceRecorder(),
+                _buildAudioPreview(),
 
                 // Location Toggle
                 const SizedBox(height: 24),

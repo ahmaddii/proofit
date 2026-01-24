@@ -29,7 +29,7 @@ class _ProofDetailScreenState extends State<ProofDetailScreen> {
   final _locationService = LocationService();
   final _proofService = ProofService();
   final _pdfService = PdfService();
-  
+
   String? _cityName;
   bool _isLoadingLocation = false;
   Map<String, Uint8List> _decryptedMedia = {};
@@ -37,6 +37,10 @@ class _ProofDetailScreenState extends State<ProofDetailScreen> {
   String? _decryptedText;
   bool _isLoadingText = false;
   bool _isGeneratingPdf = false;
+
+  // Neon colors
+  static const neonGreen = Color(0xFF00FF7F);
+  static const neonRed = Color(0xFFFF4C4C);
 
   @override
   void initState() {
@@ -73,7 +77,10 @@ class _ProofDetailScreenState extends State<ProofDetailScreen> {
 
     setState(() => _loadingMedia[key] = true);
     try {
-      final decryptedBytes = await _proofService.downloadAndDecryptMedia(url, iv);
+      final decryptedBytes = await _proofService.downloadAndDecryptMedia(
+        url,
+        iv,
+      );
       if (mounted) {
         setState(() {
           if (decryptedBytes != null) {
@@ -160,7 +167,7 @@ class _ProofDetailScreenState extends State<ProofDetailScreen> {
               ? '✓ Proof integrity verified'
               : '✗ Warning: Proof may have been tampered with',
         ),
-        backgroundColor: isValid ? AppColors.successColor : AppColors.errorColor,
+        backgroundColor: isValid ? neonGreen : neonRed,
       ),
     );
   }
@@ -168,7 +175,7 @@ class _ProofDetailScreenState extends State<ProofDetailScreen> {
   Future<void> _generateAndSharePdf() async {
     final proofProvider = context.read<ProofProvider>();
     final proof = proofProvider.getProofById(widget.proofId);
-    
+
     if (proof == null) return;
 
     setState(() => _isGeneratingPdf = true);
@@ -179,13 +186,19 @@ class _ProofDetailScreenState extends State<ProofDetailScreen> {
         for (int i = 0; i < proof.mediaUrls.length; i++) {
           final key = 'media_$i';
           if (!_decryptedMedia.containsKey(key) && _loadingMedia[key] != true) {
-            await _loadDecryptedMedia(proof.mediaUrls[i], proof.encryptionIv!, key);
+            await _loadDecryptedMedia(
+              proof.mediaUrls[i],
+              proof.encryptionIv!,
+              key,
+            );
           }
         }
       }
 
       // Ensure text is loaded
-      if (proof.textContent != null && proof.encryptionIv != null && _decryptedText == null) {
+      if (proof.textContent != null &&
+          proof.encryptionIv != null &&
+          _decryptedText == null) {
         await _loadDecryptedText(proof.textContent!, proof.encryptionIv!);
       }
 
@@ -201,7 +214,7 @@ class _ProofDetailScreenState extends State<ProofDetailScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to generate PDF: $e'),
-            backgroundColor: AppColors.errorColor,
+            backgroundColor: neonRed,
           ),
         );
       }
@@ -240,6 +253,7 @@ class _ProofDetailScreenState extends State<ProofDetailScreen> {
                 value: event == null
                     ? 0
                     : event.cumulativeBytesLoaded / event.expectedTotalBytes!,
+                color: neonGreen,
               ),
             ),
             pageController: PageController(initialPage: initialIndex),
@@ -250,11 +264,34 @@ class _ProofDetailScreenState extends State<ProofDetailScreen> {
     );
   }
 
+  Widget _buildSectionTitle(String title, IconData icon) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        children: [
+          Icon(icon, color: neonGreen, size: 20),
+          const SizedBox(width: 8),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: neonGreen,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!_isPinVerified) {
       return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
+        backgroundColor: Colors.black,
+        body: Center(
+          child: CircularProgressIndicator(color: Color(0xFF00FF7F)),
+        ),
       );
     }
 
@@ -263,16 +300,32 @@ class _ProofDetailScreenState extends State<ProofDetailScreen> {
 
     if (proof == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Proof Not Found')),
-        body: const Center(child: Text('Proof not found')),
+        backgroundColor: Colors.black,
+        appBar: AppBar(
+          backgroundColor: Colors.black,
+          iconTheme: const IconThemeData(color: Colors.white),
+          title: const Text(
+            'Proof Not Found',
+            style: TextStyle(color: Colors.white),
+          ),
+        ),
+        body: const Center(
+          child: Text('Proof not found', style: TextStyle(color: Colors.white)),
+        ),
       );
     }
 
-    final dateFormat = DateFormat('MMMM dd, yyyy • hh:mm:ss a');
+    final dateFormat = DateFormat('MMMM dd, yyyy • hh:mm a');
 
     return Scaffold(
+      backgroundColor: Colors.black,
       appBar: AppBar(
-        title: const Text('Proof Details'),
+        backgroundColor: Colors.black,
+        iconTheme: const IconThemeData(color: Colors.white),
+        title: const Text(
+          'Proof Details',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.verified_user),
@@ -296,7 +349,7 @@ class _ProofDetailScreenState extends State<ProofDetailScreen> {
         ],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(AppSizes.paddingMedium),
+        padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -305,19 +358,20 @@ class _ProofDetailScreenState extends State<ProofDetailScreen> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: AppColors.successColor.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
+                  color: neonGreen.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: neonGreen.withOpacity(0.3)),
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.lock, color: AppColors.successColor),
+                    Icon(Icons.lock, color: neonGreen, size: 20),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         AppStrings.proofLocked,
                         style: TextStyle(
-                          color: AppColors.successColor,
-                          fontWeight: FontWeight.bold,
+                          color: neonGreen,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
@@ -325,7 +379,7 @@ class _ProofDetailScreenState extends State<ProofDetailScreen> {
                 ),
               ),
 
-            const SizedBox(height: 16),
+            const SizedBox(height: 24),
 
             // Title
             Text(
@@ -333,6 +387,7 @@ class _ProofDetailScreenState extends State<ProofDetailScreen> {
               style: const TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
+                color: Colors.white,
               ),
             ),
 
@@ -341,79 +396,78 @@ class _ProofDetailScreenState extends State<ProofDetailScreen> {
             // Timestamp
             Row(
               children: [
-                Icon(Icons.access_time, size: 16, color: AppColors.textSecondary),
-                const SizedBox(width: 4),
+                Icon(
+                  Icons.access_time,
+                  size: 16,
+                  color: Colors.white.withOpacity(0.5),
+                ),
+                const SizedBox(width: 6),
                 Text(
                   dateFormat.format(proof.timestamp),
                   style: TextStyle(
-                    color: AppColors.textSecondary,
+                    color: Colors.white.withOpacity(0.5),
+                    fontSize: 14,
                   ),
                 ),
               ],
             ),
 
-            const SizedBox(height: 16),
+            const SizedBox(height: 24),
 
             // Description
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Description',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.primaryColor,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(proof.description ?? 'No description'),
-                  ],
-                ),
+            _buildSectionTitle('Description', Icons.description),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white.withOpacity(0.1)),
+              ),
+              child: Text(
+                proof.description ?? 'No description',
+                style: const TextStyle(color: Colors.white, fontSize: 14),
               ),
             ),
 
             // Location
             if (proof.latitude != null && proof.longitude != null) ...[
-              const SizedBox(height: 16),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Location',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.primaryColor,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Icon(Icons.location_on, color: AppColors.textSecondary),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: _isLoadingLocation
-                                ? const SizedBox(
-                                    height: 16,
-                                    width: 16,
-                                    child: CircularProgressIndicator(strokeWidth: 2),
-                                  )
-                                : Text(
-                                    _cityName ?? _locationService.formatLocation(
-                                      proof.latitude,
-                                      proof.longitude,
-                                    ),
+              const SizedBox(height: 24),
+              _buildSectionTitle('Location', Icons.location_on),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.white.withOpacity(0.1)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.location_on, color: neonGreen, size: 20),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _isLoadingLocation
+                          ? SizedBox(
+                              height: 16,
+                              width: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: neonGreen,
+                              ),
+                            )
+                          : Text(
+                              _cityName ??
+                                  _locationService.formatLocation(
+                                    proof.latitude,
+                                    proof.longitude,
                                   ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                              ),
+                            ),
+                    ),
+                  ],
                 ),
               ),
               if (_cityName == null && !_isLoadingLocation)
@@ -429,284 +483,297 @@ class _ProofDetailScreenState extends State<ProofDetailScreen> {
 
             // Media
             if (proof.mediaUrls.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Media (${proof.mediaUrls.length})',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.primaryColor,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      if (proof.encryptionIv != null)
-                        GridView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
-                            crossAxisSpacing: 8,
-                            mainAxisSpacing: 8,
-                            childAspectRatio: 1,
+              const SizedBox(height: 24),
+              _buildSectionTitle(
+                'Media (${proof.mediaUrls.length})',
+                Icons.photo_library,
+              ),
+              if (proof.encryptionIv != null)
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                    childAspectRatio: 1,
+                  ),
+                  itemCount: proof.mediaUrls.length,
+                  itemBuilder: (context, index) {
+                    final url = proof.mediaUrls[index];
+                    final key = 'media_$index';
+
+                    // Load media if not already loaded
+                    if (!_decryptedMedia.containsKey(key) &&
+                        _loadingMedia[key] != true &&
+                        proof.encryptionIv != null) {
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        _loadDecryptedMedia(url, proof.encryptionIv!, key);
+                      });
+                    }
+
+                    if (_loadingMedia[key] == true) {
+                      return Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.05),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.1),
                           ),
-                          itemCount: proof.mediaUrls.length,
-                          itemBuilder: (context, index) {
-                            final url = proof.mediaUrls[index];
-                            final key = 'media_$index';
-                            
-                            // Load media if not already loaded
-                            if (!_decryptedMedia.containsKey(key) && 
-                                _loadingMedia[key] != true &&
-                                proof.encryptionIv != null) {
-                              WidgetsBinding.instance.addPostFrameCallback((_) {
-                                _loadDecryptedMedia(url, proof.encryptionIv!, key);
-                              });
-                            }
-                            
-                            if (_loadingMedia[key] == true) {
-                              return Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.grey[200],
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: const Center(
-                                  child: CircularProgressIndicator(),
-                                ),
-                              );
-                            }
-                            
-                            if (_decryptedMedia.containsKey(key)) {
-                              return InkWell(
-                                onTap: () {
-                                  final imageIndex = int.parse(key.split('_').last);
-                                  _viewImageGallery(imageIndex);
-                                },
-                                borderRadius: BorderRadius.circular(8),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: Stack(
-                                    fit: StackFit.expand,
-                                    children: [
-                                      Image.memory(
-                                        _decryptedMedia[key]!,
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (context, error, stackTrace) {
-                                          return Container(
-                                            color: Colors.grey[300],
-                                            child: const Icon(Icons.broken_image),
-                                          );
-                                        },
+                        ),
+                        child: Center(
+                          child: CircularProgressIndicator(color: neonGreen),
+                        ),
+                      );
+                    }
+
+                    if (_decryptedMedia.containsKey(key)) {
+                      return InkWell(
+                        onTap: () {
+                          final imageIndex = int.parse(key.split('_').last);
+                          _viewImageGallery(imageIndex);
+                        },
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: neonGreen.withOpacity(0.3),
+                              width: 2,
+                            ),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                Image.memory(
+                                  _decryptedMedia[key]!,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    return Container(
+                                      color: Colors.white.withOpacity(0.05),
+                                      child: Icon(
+                                        Icons.broken_image,
+                                        color: neonRed,
                                       ),
-                                      // Subtle indicator that image is tappable
-                                      Positioned(
-                                        top: 4,
-                                        right: 4,
-                                        child: Container(
-                                          padding: const EdgeInsets.all(4),
-                                          decoration: BoxDecoration(
-                                            color: Colors.black.withValues(alpha: 0.5),
-                                            shape: BoxShape.circle,
-                                          ),
-                                          child: const Icon(
-                                            Icons.fullscreen,
-                                            color: Colors.white,
-                                            size: 16,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
+                                    );
+                                  },
+                                ),
+                                // Tap indicator
+                                Positioned(
+                                  top: 8,
+                                  right: 8,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(6),
+                                    decoration: BoxDecoration(
+                                      color: Colors.black.withOpacity(0.6),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Icon(
+                                      Icons.fullscreen,
+                                      color: neonGreen,
+                                      size: 16,
+                                    ),
                                   ),
                                 ),
-                              );
-                            }
-                            
-                            // Show error state if loading failed
-                            if (_loadingMedia[key] == false && !_decryptedMedia.containsKey(key)) {
-                              return Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.orange[100],
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(Icons.error_outline, color: Colors.orange[700]),
-                                    const SizedBox(height: 4),
-                                    Padding(
-                                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                                      child: Text(
-                                        'Cannot decrypt',
-                                        style: TextStyle(
-                                          fontSize: 10,
-                                          color: Colors.orange[700],
-                                        ),
-                                        textAlign: TextAlign.center,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            }
-                            
-                            return Container(
-                              decoration: BoxDecoration(
-                                color: Colors.grey[200],
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: const Icon(Icons.image),
-                            );
-                          },
-                        )
-                      else
-                        const Text('Media files (decryption key not available)'),
-                    ],
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    }
+
+                    // Show error state if loading failed
+                    if (_loadingMedia[key] == false &&
+                        !_decryptedMedia.containsKey(key)) {
+                      return Container(
+                        decoration: BoxDecoration(
+                          color: neonRed.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: neonRed.withOpacity(0.3)),
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.error_outline, color: neonRed),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Cannot decrypt',
+                              style: TextStyle(fontSize: 10, color: neonRed),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
+                    return Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        Icons.image,
+                        color: Colors.white.withOpacity(0.3),
+                      ),
+                    );
+                  },
+                )
+              else
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.05),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    'Media files (decryption key not available)',
+                    style: TextStyle(color: Colors.white.withOpacity(0.5)),
                   ),
                 ),
-              ),
             ],
 
             // Audio
             if (proof.audioUrl != null) ...[
-              const SizedBox(height: 16),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Audio Recording',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.primaryColor,
-                        ),
+              const SizedBox(height: 24),
+              _buildSectionTitle('Audio Recording', Icons.mic),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.white.withOpacity(0.1)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.audiotrack, color: neonGreen, size: 20),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Text(
+                        'Encrypted audio file attached',
+                        style: TextStyle(color: Colors.white, fontSize: 14),
                       ),
-                      const SizedBox(height: 8),
-                      Text('Encrypted audio file attached'),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ],
 
             // Text content
             if (proof.textContent != null) ...[
-              const SizedBox(height: 16),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Text Evidence',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.primaryColor,
+              const SizedBox(height: 24),
+              _buildSectionTitle('Text Evidence', Icons.text_fields),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.white.withOpacity(0.1)),
+                ),
+                child: Builder(
+                  builder: (context) {
+                    // Load decrypted text if not already loaded
+                    if (_decryptedText == null &&
+                        !_isLoadingText &&
+                        proof.encryptionIv != null) {
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        _loadDecryptedText(
+                          proof.textContent!,
+                          proof.encryptionIv!,
+                        );
+                      });
+                    }
+
+                    if (_isLoadingText) {
+                      return Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: CircularProgressIndicator(color: neonGreen),
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      Builder(
-                        builder: (context) {
-                          // Load decrypted text if not already loaded
-                          if (_decryptedText == null && 
-                              !_isLoadingText &&
-                              proof.encryptionIv != null) {
-                            WidgetsBinding.instance.addPostFrameCallback((_) {
-                              _loadDecryptedText(proof.textContent!, proof.encryptionIv!);
-                            });
-                          }
-                          
-                          if (_isLoadingText) {
-                            return const Center(
-                              child: Padding(
-                                padding: EdgeInsets.all(16.0),
-                                child: CircularProgressIndicator(),
-                              ),
-                            );
-                          }
-                          
-                          if (_decryptedText != null) {
-                            return SelectableText(
-                              _decryptedText!,
-                              style: const TextStyle(fontSize: 14),
-                            );
-                          }
-                          
-                          return const Text('Loading decrypted text...');
-                        },
-                      ),
-                    ],
-                  ),
+                      );
+                    }
+
+                    if (_decryptedText != null) {
+                      return SelectableText(
+                        _decryptedText!,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Colors.white,
+                        ),
+                      );
+                    }
+
+                    return Text(
+                      'Loading decrypted text...',
+                      style: TextStyle(color: Colors.white.withOpacity(0.5)),
+                    );
+                  },
                 ),
               ),
             ],
 
-            const SizedBox(height: 16),
+            const SizedBox(height: 24),
 
             // Hash display
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.fingerprint, color: AppColors.primaryColor, size: 20),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Content Hash (Tamper Detection)',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.primaryColor,
-                          ),
-                        ),
-                      ],
+            _buildSectionTitle('Content Hash', Icons.fingerprint),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white.withOpacity(0.1)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'This hash is generated from all proof content. If any content is modified, the hash will change, alerting you to potential tampering.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.white.withOpacity(0.6),
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'This hash is generated from all proof content (title, description, timestamp, media, audio, and text). If any content is modified, the hash will change, alerting you to potential tampering.',
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.black,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: neonGreen.withOpacity(0.3)),
+                    ),
+                    child: SelectableText(
+                      proof.contentHash,
                       style: TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textSecondary,
-                        fontStyle: FontStyle.italic,
+                        fontSize: 10,
+                        fontFamily: 'monospace',
+                        color: neonGreen.withOpacity(0.8),
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[100],
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: SelectableText(
-                        proof.contentHash,
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontFamily: 'monospace',
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    ElevatedButton.icon(
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
                       onPressed: _verifyIntegrity,
                       icon: const Icon(Icons.verified_user, size: 18),
                       label: const Text('Verify Integrity'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.successColor,
+                        backgroundColor: neonGreen,
+                        foregroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
+
+            const SizedBox(height: 20),
           ],
         ),
       ),

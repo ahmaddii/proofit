@@ -8,6 +8,7 @@ import 'screens/auth/login_screen.dart';
 import 'screens/home/home_dashboard.dart';
 import 'utils/constants.dart';
 import 'services/preferences_service.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -38,23 +39,52 @@ class ProofItApp extends StatelessWidget {
         title: 'ProofIt',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
-          primarySwatch: Colors.blue,
-          primaryColor: AppColors.primaryColor,
-          scaffoldBackgroundColor: AppColors.backgroundColor,
+          brightness: Brightness.dark,
+          scaffoldBackgroundColor: Colors.black,
+          primaryColor: const Color(0xFF00FF7F),
+          colorScheme: ColorScheme.dark(
+            primary: const Color(0xFF00FF7F),
+            secondary: const Color(0xFF00FF7F),
+            surface: Colors.black,
+            error: const Color(0xFFFF4C4C),
+          ),
           appBarTheme: const AppBarTheme(
-            backgroundColor: AppColors.primaryColor,
+            backgroundColor: Colors.black,
             foregroundColor: Colors.white,
             elevation: 0,
           ),
           elevatedButtonTheme: ElevatedButtonThemeData(
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primaryColor,
-              foregroundColor: Colors.white,
+              backgroundColor: const Color(0xFF00FF7F),
+              foregroundColor: Colors.black,
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
+          ),
+          inputDecorationTheme: InputDecorationTheme(
+            filled: true,
+            fillColor: Colors.white.withOpacity(0.05),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFF00FF7F), width: 2),
+            ),
+          ),
+          textTheme: GoogleFonts.poppinsTextTheme().copyWith(
+            bodyLarge: GoogleFonts.poppins(color: Colors.white),
+            bodyMedium: GoogleFonts.poppins(color: Colors.white),
+            bodySmall: GoogleFonts.poppins(color: Colors.white),
+            titleLarge: GoogleFonts.poppins(color: Colors.white),
+            labelLarge: GoogleFonts.poppins(color: Colors.white),
           ),
         ),
         home: const AuthWrapper(),
@@ -73,7 +103,12 @@ class AuthWrapper extends StatelessWidget {
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
+            backgroundColor: Colors.black,
+            body: Center(
+              child: CircularProgressIndicator(
+                color: Color(0xFF00FF7F), // Neon green
+              ),
+            ),
           );
         }
 

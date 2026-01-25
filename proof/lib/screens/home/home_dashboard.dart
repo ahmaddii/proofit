@@ -5,7 +5,12 @@ import '../../providers/auth_provider.dart';
 import '../../utils/constants.dart';
 import '../proof/create_proof_screen.dart';
 import '../proof/view_proofs_screen.dart';
+import '../proof/scan_document_screen.dart';
+import '../proof/record_video_screen.dart';
 import '../settings/settings_screen.dart';
+import '../auth/pin_setup_screen.dart';
+import '../../widgets/locked_proof_dialog.dart';
+import 'package:lottie/lottie.dart';
 
 // ================= COLORS =================
 const Color kBgBlack = Color(0xFF0B0B0F);
@@ -60,19 +65,46 @@ class _HomeDashboardState extends State<HomeDashboard>
     super.dispose();
   }
 
-  void _showSuccessSnackbar(BuildContext context) {
-    debugPrint('HomeDashboard: _showSuccessSnackbar called');
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text(
-          'Proof created successfully!',
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: kNeonGreen,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+  void _showSuccessDialog(BuildContext context) {
+    debugPrint('HomeDashboard: _showSuccessDialog called');
+    showDialog(
+      context: context,
+      barrierColor: Colors.transparent,
+      builder: (context) => LockedProofDialog(
+        onDismiss: () {
+          Navigator.of(context).pop();
+        },
       ),
     );
+  }
+
+  Future<void> _handleProofCreation(BuildContext context, Widget screen) async {
+    final authProvider = context.read<AuthProvider>();
+    if (!await authProvider.hasPinSetup()) {
+      if (context.mounted) {
+        final pinSetupResult = await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => const PinSetupScreen(isMandatory: true),
+          ),
+        );
+
+        if (pinSetupResult != true) {
+          return; // User didn't set up PIN
+        }
+      }
+    }
+
+    if (!context.mounted) return;
+
+    final result = await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => screen));
+
+    if (result == true && context.mounted) {
+      debugPrint('HomeDashboard: Proof created successfully, showing dialog');
+      _showSuccessDialog(context);
+      debugPrint('HomeDashboard: Dialog shown');
+    }
   }
 
   @override
@@ -154,10 +186,11 @@ class _HomeDashboardState extends State<HomeDashboard>
                                     shape: BoxShape.circle,
                                     color: kNeonGreen.withOpacity(0.15),
                                   ),
-                                  child: const Icon(
-                                    Icons.waving_hand,
-                                    size: 32,
-                                    color: kNeonGreen,
+                                  child: Lottie.asset(
+                                    'assets/animations/hello.json',
+                                    width: 50,
+                                    height: 50,
+                                    fit: BoxFit.contain,
                                   ),
                                 ),
                                 const SizedBox(width: 16),
@@ -167,9 +200,9 @@ class _HomeDashboardState extends State<HomeDashboard>
                                         CrossAxisAlignment.start,
                                     children: [
                                       const Text(
-                                        'Welcome back!',
+                                        'Welcome back !',
                                         style: TextStyle(
-                                          fontSize: 22,
+                                          fontSize: 20,
                                           fontWeight: FontWeight.bold,
                                           color: Colors.white,
                                         ),
@@ -218,21 +251,10 @@ class _HomeDashboardState extends State<HomeDashboard>
                         _DashboardCard(
                           icon: Icons.add_circle_outline,
                           title: AppStrings.createProof,
-                          onTap: () async {
-                            final result = await Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => const CreateProofScreen(),
-                              ),
-                            );
-
-                            if (result == true && context.mounted) {
-                              debugPrint(
-                                'HomeDashboard: Proof created successfully, showing snackbar',
-                              );
-                              _showSuccessSnackbar(context);
-                              debugPrint('HomeDashboard: Snackbar shown');
-                            }
-                          },
+                          onTap: () => _handleProofCreation(
+                            context,
+                            const CreateProofScreen(),
+                          ),
                           delay: 0,
                         ),
                         _DashboardCard(
@@ -246,6 +268,24 @@ class _HomeDashboardState extends State<HomeDashboard>
                             );
                           },
                           delay: 100,
+                        ),
+                        _DashboardCard(
+                          icon: Icons.document_scanner,
+                          title: 'Scan Document',
+                          onTap: () => _handleProofCreation(
+                            context,
+                            const ScanDocumentScreen(),
+                          ),
+                          delay: 200,
+                        ),
+                        _DashboardCard(
+                          icon: Icons.videocam,
+                          title: 'Record Video',
+                          onTap: () => _handleProofCreation(
+                            context,
+                            const RecordVideoScreen(),
+                          ),
+                          delay: 300,
                         ),
                       ],
                     ),

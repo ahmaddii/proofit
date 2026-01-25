@@ -31,7 +31,7 @@ class _ViewProofsScreenState extends State<ViewProofsScreen> {
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
-        title: const Text('View Proofs (Debug Mode)'),
+        title: const Text('View Proofs'),
         backgroundColor: Colors.black,
         iconTheme: const IconThemeData(color: Colors.white),
       ),

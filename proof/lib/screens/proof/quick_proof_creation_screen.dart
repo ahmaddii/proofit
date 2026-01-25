@@ -93,15 +93,14 @@ class _QuickProofCreationScreenState extends State<QuickProofCreationScreen>
 
     final proofProvider = context.read<ProofProvider>();
 
-    // For video, we treat it as a media file
-    final mediaFilesToUpload = widget.videoFile != null
-        ? [widget.videoFile!]
-        : widget.mediaFiles;
+    // For video, we treat it as a separate parameter
+    final mediaFilesToUpload = widget.mediaFiles;
 
     final success = await proofProvider.createProof(
       title: _titleController.text,
       description: _descriptionController.text,
       mediaFiles: mediaFilesToUpload,
+      videoFile: widget.videoFile,
       latitude: _latitude,
       longitude: _longitude,
     );

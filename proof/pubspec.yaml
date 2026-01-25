@@ -59,6 +59,8 @@ dependencies:
   audioplayers: ^6.5.1
   lottie: ^3.3.2
   video_player: ^2.10.1
+  cunning_document_scanner: ^1.4.0
+ 
  
  
 
@@ -72,6 +74,7 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
+  flutter_native_splash: ^2.4.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -116,3 +119,14 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+flutter_native_splash:
+  color: "#0B0B0F"
+  # image: assets/logo.png # Using a placeholder for now, user can replace
+  branding: assets/animations/logo.png
+  color_dark: "#0B0B0F"
+  # image_dark: assets/logo.png
+  android_12:
+    color: "#0B0B0F"
+    # icon_background_color: "#0B0B0F"
+  web: false

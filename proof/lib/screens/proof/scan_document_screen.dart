@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:cunning_document_scanner/cunning_document_scanner.dart';
 import 'quick_proof_creation_screen.dart';
 import '../../utils/constants.dart';
 
@@ -13,9 +13,8 @@ class ScanDocumentScreen extends StatefulWidget {
 
 class _ScanDocumentScreenState extends State<ScanDocumentScreen>
     with SingleTickerProviderStateMixin {
-  final _imagePicker = ImagePicker();
-  File? _scannedDocument;
-  bool _isCapturing = false;
+  List<String> _scannedDocuments = [];
+  bool _isScanning = false;
 
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
@@ -39,9 +38,9 @@ class _ScanDocumentScreenState extends State<ScanDocumentScreen>
 
     _fadeController.forward();
 
-    // Auto-launch camera when screen opens
+    // Auto-launch scanner when screen opens
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _captureDocument();
+      _scanDocument();
     });
   }
 
@@ -51,52 +50,68 @@ class _ScanDocumentScreenState extends State<ScanDocumentScreen>
     super.dispose();
   }
 
-  Future<void> _captureDocument() async {
-    if (_isCapturing) return;
+  Future<void> _scanDocument() async {
+    if (_isScanning) return;
 
-    setState(() => _isCapturing = true);
+    setState(() => _isScanning = true);
 
     try {
-      final pickedFile = await _imagePicker.pickImage(
-        source: ImageSource.camera,
-        imageQuality: 100, // High quality for document scanning
-        preferredCameraDevice: CameraDevice.rear,
-      );
+      // Launch document scanner
+      List<String> pictures =
+          await CunningDocumentScanner.getPictures(
+            noOfPages: 10, // Allow up to 10 pages
+            isGalleryImportAllowed: false, // Only camera, no gallery
+          ) ??
+          [];
 
-      if (pickedFile != null) {
+      if (pictures.isNotEmpty) {
         setState(() {
-          _scannedDocument = File(pickedFile.path);
+          _scannedDocuments.addAll(pictures);
         });
       } else {
-        // User cancelled, go back
-        if (mounted) {
+        // User cancelled scanning
+        if (mounted && _scannedDocuments.isEmpty) {
           Navigator.of(context).pop();
         }
       }
     } catch (e) {
-      _showError('Failed to capture document: $e');
-      if (mounted) {
+      debugPrint('Scanner error: $e');
+      _showError('Failed to scan document: $e');
+      if (mounted && _scannedDocuments.isEmpty) {
         Navigator.of(context).pop();
       }
     } finally {
-      setState(() => _isCapturing = false);
+      setState(() => _isScanning = false);
     }
   }
 
-  Future<void> _retakeDocument() async {
+  Future<void> _deleteDocument(int index) async {
+    try {
+      final file = File(_scannedDocuments[index]);
+      if (await file.exists()) {
+        await file.delete();
+      }
+    } catch (e) {
+      debugPrint('Error deleting file: $e');
+    }
+
     setState(() {
-      _scannedDocument = null;
+      _scannedDocuments.removeAt(index);
     });
-    await _captureDocument();
+
+    // If no documents left, go back
+    if (_scannedDocuments.isEmpty && mounted) {
+      Navigator.of(context).pop();
+    }
   }
 
   Future<void> _proceedToProofCreation() async {
-    if (_scannedDocument == null) return;
+    if (_scannedDocuments.isEmpty) return;
 
     final result = await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => QuickProofCreationScreen(
-          mediaFiles: [_scannedDocument!],
+          mediaFiles: _scannedDocuments.map((path) => File(path)).toList(),
           proofType: 'Document Scan',
         ),
       ),
@@ -125,7 +140,7 @@ class _ScanDocumentScreenState extends State<ScanDocumentScreen>
       backgroundColor: Colors.black,
       appBar: AppBar(
         title: const Text(
-          'Scan Document',
+          'Scan Documents',
           style: TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.w600,
@@ -138,14 +153,43 @@ class _ScanDocumentScreenState extends State<ScanDocumentScreen>
       ),
       body: FadeTransition(
         opacity: _fadeAnimation,
-        child: _scannedDocument == null
-            ? _buildCaptureInProgress()
-            : _buildDocumentPreview(),
+        child: _scannedDocuments.isEmpty
+            ? _buildScanningInProgress()
+            : _buildDocumentsList(),
       ),
+      floatingActionButton: _scannedDocuments.isNotEmpty && !_isScanning
+          ? Column(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                // Add more pages button
+                FloatingActionButton(
+                  heroTag: 'add_more',
+                  onPressed: _scanDocument,
+                  backgroundColor: Colors.white.withOpacity(0.1),
+                  child: const Icon(Icons.add, color: neonGreen),
+                ),
+                const SizedBox(height: 12),
+                // Done button
+                FloatingActionButton.extended(
+                  heroTag: 'done',
+                  onPressed: _proceedToProofCreation,
+                  backgroundColor: neonGreen,
+                  icon: const Icon(Icons.check, color: Colors.black),
+                  label: Text(
+                    'Done (${_scannedDocuments.length})',
+                    style: const TextStyle(
+                      color: Colors.black,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            )
+          : null,
     );
   }
 
-  Widget _buildCaptureInProgress() {
+  Widget _buildScanningInProgress() {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -153,10 +197,18 @@ class _ScanDocumentScreenState extends State<ScanDocumentScreen>
           const CircularProgressIndicator(color: neonGreen),
           const SizedBox(height: 24),
           Text(
-            'Opening camera...',
+            'Opening scanner...',
             style: TextStyle(
               color: Colors.white.withOpacity(0.7),
               fontSize: 16,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Scan up to 10 pages',
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.5),
+              fontSize: 14,
             ),
           ),
         ],
@@ -164,103 +216,178 @@ class _ScanDocumentScreenState extends State<ScanDocumentScreen>
     );
   }
 
-  Widget _buildDocumentPreview() {
+  Widget _buildDocumentsList() {
     return Column(
       children: [
-        Expanded(
-          child: Container(
-            margin: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: neonGreen.withOpacity(0.3), width: 2),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(14),
-              child: Image.file(_scannedDocument!, fit: BoxFit.contain),
-            ),
-          ),
-        ),
+        // Header info
         Container(
-          padding: const EdgeInsets.all(20),
+          margin: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.05),
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(24),
-              topRight: Radius.circular(24),
-            ),
+            color: neonGreen.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: neonGreen.withOpacity(0.3)),
           ),
-          child: Column(
+          child: Row(
             children: [
-              // Info text
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: neonGreen.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: neonGreen.withOpacity(0.3)),
-                ),
-                child: Row(
+              Icon(Icons.document_scanner, color: neonGreen, size: 24),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.info_outline, color: neonGreen, size: 20),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Review your document and add details on the next screen',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.white.withOpacity(0.8),
-                        ),
+                    Text(
+                      '${_scannedDocuments.length} ${_scannedDocuments.length == 1 ? 'Page' : 'Pages'} Scanned',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Tap + to add more pages',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.6),
+                        fontSize: 13,
                       ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 16),
-              // Action buttons
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: _retakeDocument,
-                      icon: const Icon(Icons.refresh),
-                      label: const Text('Retake'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.white,
-                        side: BorderSide(color: Colors.white.withOpacity(0.3)),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                    ),
+            ],
+          ),
+        ),
+
+        // Scanned documents grid
+        Expanded(
+          child: GridView.builder(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
+              childAspectRatio: 0.7,
+            ),
+            itemCount: _scannedDocuments.length,
+            itemBuilder: (context, index) {
+              return _buildDocumentCard(index);
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDocumentCard(int index) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: neonGreen.withOpacity(0.3), width: 2),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // Document image
+            Image.file(File(_scannedDocuments[index]), fit: BoxFit.cover),
+
+            // Gradient overlay for better text visibility
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withOpacity(0.6),
+                    Colors.transparent,
+                    Colors.black.withOpacity(0.6),
+                  ],
+                ),
+              ),
+            ),
+
+            // Page number badge
+            Positioned(
+              top: 8,
+              left: 8,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: neonGreen,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  'Page ${index + 1}',
+                  style: const TextStyle(
+                    color: Colors.black,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    flex: 2,
-                    child: ElevatedButton.icon(
-                      onPressed: _proceedToProofCreation,
-                      icon: const Icon(Icons.arrow_forward),
-                      label: const Text('Continue'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: neonGreen,
-                        foregroundColor: Colors.black,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        textStyle: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+
+            // Delete button
+            Positioned(
+              top: 8,
+              right: 8,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: neonRed,
+                  shape: BoxShape.circle,
+                ),
+                child: IconButton(
+                  icon: const Icon(Icons.close, color: Colors.white, size: 18),
+                  padding: const EdgeInsets.all(8),
+                  constraints: const BoxConstraints(),
+                  onPressed: () => _deleteDocument(index),
+                ),
+              ),
+            ),
+
+            // Document icon at bottom
+            Positioned(
+              bottom: 12,
+              left: 0,
+              right: 0,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.7),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.check_circle, color: neonGreen, size: 14),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Enhanced',
+                          style: TextStyle(
+                            color: neonGreen,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
+                      ],
                     ),
                   ),
                 ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }

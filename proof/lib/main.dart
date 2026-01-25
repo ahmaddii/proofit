@@ -8,7 +8,9 @@ import 'screens/auth/login_screen.dart';
 import 'screens/home/home_dashboard.dart';
 import 'utils/constants.dart';
 import 'services/preferences_service.dart';
+import 'screens/splash/splash_screen.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'screens/onboarding/onboarding_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -93,15 +95,44 @@ class ProofItApp extends StatelessWidget {
   }
 }
 
-class AuthWrapper extends StatelessWidget {
+class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
 
   @override
+  State<AuthWrapper> createState() => _AuthWrapperState();
+}
+
+class _AuthWrapperState extends State<AuthWrapper> {
+  bool _showSplash = true;
+
+  @override
+  void initState() {
+    super.initState();
+    // Keep splash for a minimum duration or wait for initialization
+    Future.delayed(const Duration(seconds: 3), () {
+      if (mounted) {
+        setState(() => _showSplash = false);
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (_showSplash) {
+      return const SplashScreen();
+    }
+
+    // Check if onboarding is completed
+    if (!PreferencesService.isOnboardingCompleted()) {
+      return const OnboardingScreen();
+    }
+
     return StreamBuilder<AuthState>(
       stream: Supabase.instance.client.auth.onAuthStateChange,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
+          // If we are still waiting but splash is done (unlikely with 3s delay),
+          // show a loader.
           return const Scaffold(
             backgroundColor: Colors.black,
             body: Center(
@@ -113,6 +144,11 @@ class AuthWrapper extends StatelessWidget {
         }
 
         final session = snapshot.data?.session;
+
+        // If session exists but no user ID stored, store it
+        if (session != null && PreferencesService.getUserId() == null) {
+          PreferencesService.setUserId(session.user.id);
+        }
 
         if (session != null) {
           return const HomeDashboard();

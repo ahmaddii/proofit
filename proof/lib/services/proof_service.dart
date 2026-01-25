@@ -14,6 +14,7 @@ class ProofService {
     required String title,
     required String description,
     List<File>? mediaFiles,
+    File? videoFile,
     File? audioFile,
     String? textContent,
     double? latitude,
@@ -24,6 +25,7 @@ class ProofService {
       if (userId == null) throw Exception('User not authenticated');
 
       List<String> mediaUrls = [];
+      String? videoUrl;
       String? audioUrl;
       String? encryptionIv;
 
@@ -37,42 +39,64 @@ class ProofService {
         for (int i = 0; i < mediaFiles.length; i++) {
           final file = mediaFiles[i];
           final bytes = await file.readAsBytes();
-          
+
           // Encrypt file with shared IV
-          final encrypted = await EncryptionService.encryptFileBytesWithIv(bytes, sharedIv.base64);
-          
-          final fileName = '$userId/${DateTime.now().millisecondsSinceEpoch}_$i.enc';
-          
+          final encrypted = await EncryptionService.encryptFileBytesWithIv(
+            bytes,
+            sharedIv.base64,
+          );
+
+          final fileName =
+              '$userId/${DateTime.now().millisecondsSinceEpoch}_$i.enc';
+
           await _supabase.storage
               .from(SupabaseConfig.mediaStorageBucket)
-              .uploadBinary(
-                fileName,
-                encrypted['encryptedBytes'] as Uint8List,
-              );
-          
+              .uploadBinary(fileName, encrypted['encryptedBytes'] as Uint8List);
+
           final url = _supabase.storage
               .from(SupabaseConfig.mediaStorageBucket)
               .getPublicUrl(fileName);
-          
+
           mediaUrls.add(url);
         }
+      }
+
+      // Upload video file
+      if (videoFile != null) {
+        final bytes = await videoFile.readAsBytes();
+        final encrypted = await EncryptionService.encryptFileBytesWithIv(
+          bytes,
+          sharedIv.base64,
+        );
+
+        final fileName =
+            '$userId/${DateTime.now().millisecondsSinceEpoch}_video.enc';
+
+        await _supabase.storage
+            .from(SupabaseConfig.videoStorageBucket)
+            .uploadBinary(fileName, encrypted['encryptedBytes'] as Uint8List);
+
+        videoUrl = _supabase.storage
+            .from(SupabaseConfig.videoStorageBucket)
+            .getPublicUrl(fileName);
       }
 
       // Upload audio file
       if (audioFile != null) {
         final bytes = await audioFile.readAsBytes();
         // Encrypt audio with shared IV
-        final encrypted = await EncryptionService.encryptFileBytesWithIv(bytes, sharedIv.base64);
-        
-        final fileName = '$userId/${DateTime.now().millisecondsSinceEpoch}_audio.enc';
-        
+        final encrypted = await EncryptionService.encryptFileBytesWithIv(
+          bytes,
+          sharedIv.base64,
+        );
+
+        final fileName =
+            '$userId/${DateTime.now().millisecondsSinceEpoch}_audio.enc';
+
         await _supabase.storage
             .from(SupabaseConfig.audioStorageBucket)
-            .uploadBinary(
-              fileName,
-              encrypted['encryptedBytes'] as Uint8List,
-            );
-        
+            .uploadBinary(fileName, encrypted['encryptedBytes'] as Uint8List);
+
         audioUrl = _supabase.storage
             .from(SupabaseConfig.audioStorageBucket)
             .getPublicUrl(fileName);
@@ -82,7 +106,10 @@ class ProofService {
       String? encryptedText;
       if (textContent != null && textContent.isNotEmpty) {
         // Encrypt text with shared IV
-        final encrypted = await EncryptionService.encryptDataWithIv(textContent, sharedIv.base64);
+        final encrypted = await EncryptionService.encryptDataWithIv(
+          textContent,
+          sharedIv.base64,
+        );
         encryptedText = encrypted['encrypted'];
       }
 
@@ -94,25 +121,31 @@ class ProofService {
         description: description,
         timestamp: timestamp,
         mediaUrls: mediaUrls,
+        videoUrl: videoUrl,
         audioUrl: audioUrl,
         textContent: encryptedText,
       );
 
       // Insert proof into database
-      final response = await _supabase.from('proofs').insert({
-        'user_id': userId,
-        'title': title,
-        'description': description,
-        'timestamp': timestamp.toIso8601String(),
-        'locked_flag': false,
-        'latitude': latitude,
-        'longitude': longitude,
-        'media_urls': mediaUrls,
-        'audio_url': audioUrl,
-        'text_content': encryptedText,
-        'content_hash': hash,
-        'encryption_iv': encryptionIv,
-      }).select().single();
+      final response = await _supabase
+          .from('proofs')
+          .insert({
+            'user_id': userId,
+            'title': title,
+            'description': description,
+            'timestamp': timestamp.toIso8601String(),
+            'locked_flag': false,
+            'latitude': latitude,
+            'longitude': longitude,
+            'media_urls': mediaUrls,
+            'video_url': videoUrl,
+            'audio_url': audioUrl,
+            'text_content': encryptedText,
+            'content_hash': hash,
+            'encryption_iv': encryptionIv,
+          })
+          .select()
+          .single();
 
       return ProofModel.fromJson(response);
     } catch (e) {
@@ -166,7 +199,7 @@ class ProofService {
           .from('proofs')
           .update({'locked_flag': true})
           .eq('proof_id', proofId);
-      
+
       return true;
     } catch (e) {
       print('Error locking proof: $e');
@@ -199,15 +232,17 @@ class ProofService {
       // URL format: https://...supabase.co/storage/v1/object/public/proof-media/userId/filename
       final uri = Uri.parse(url);
       final pathSegments = uri.pathSegments;
-      final bucketIndex = pathSegments.indexOf(SupabaseConfig.mediaStorageBucket);
-      
+      final bucketIndex = pathSegments.indexOf(
+        SupabaseConfig.mediaStorageBucket,
+      );
+
       if (bucketIndex == -1 || bucketIndex >= pathSegments.length - 1) {
         throw Exception('Invalid URL format');
       }
-      
+
       // Get the file path after bucket name
       final filePath = pathSegments.sublist(bucketIndex + 1).join('/');
-      
+
       final response = await _supabase.storage
           .from(SupabaseConfig.mediaStorageBucket)
           .download(filePath);
@@ -233,14 +268,16 @@ class ProofService {
     try {
       final uri = Uri.parse(url);
       final pathSegments = uri.pathSegments;
-      final bucketIndex = pathSegments.indexOf(SupabaseConfig.audioStorageBucket);
-      
+      final bucketIndex = pathSegments.indexOf(
+        SupabaseConfig.audioStorageBucket,
+      );
+
       if (bucketIndex == -1 || bucketIndex >= pathSegments.length - 1) {
         throw Exception('Invalid URL format');
       }
-      
+
       final filePath = pathSegments.sublist(bucketIndex + 1).join('/');
-      
+
       final response = await _supabase.storage
           .from(SupabaseConfig.audioStorageBucket)
           .download(filePath);
@@ -248,6 +285,32 @@ class ProofService {
       return await EncryptionService.decryptFileBytes(response, iv);
     } catch (e) {
       print('Error downloading audio: $e');
+      return null;
+    }
+  }
+
+  // Download and decrypt video file
+  Future<Uint8List?> downloadAndDecryptVideo(String url, String iv) async {
+    try {
+      final uri = Uri.parse(url);
+      final pathSegments = uri.pathSegments;
+      final bucketIndex = pathSegments.indexOf(
+        SupabaseConfig.videoStorageBucket,
+      );
+
+      if (bucketIndex == -1 || bucketIndex >= pathSegments.length - 1) {
+        throw Exception('Invalid URL format');
+      }
+
+      final filePath = pathSegments.sublist(bucketIndex + 1).join('/');
+
+      final response = await _supabase.storage
+          .from(SupabaseConfig.videoStorageBucket)
+          .download(filePath);
+
+      return await EncryptionService.decryptFileBytes(response, iv);
+    } catch (e) {
+      print('Error downloading video: $e');
       return null;
     }
   }
@@ -260,6 +323,7 @@ class ProofService {
         description: proof.description ?? '',
         timestamp: proof.timestamp,
         mediaUrls: proof.mediaUrls,
+        videoUrl: proof.videoUrl,
         audioUrl: proof.audioUrl,
         textContent: proof.textContent,
       );

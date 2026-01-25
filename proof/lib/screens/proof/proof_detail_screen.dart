@@ -1,7 +1,9 @@
 import 'dart:typed_data';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:video_player/video_player.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:photo_view/photo_view_gallery.dart';
@@ -48,6 +50,12 @@ class _ProofDetailScreenState extends State<ProofDetailScreen> {
   Duration _audioDuration = Duration.zero;
   Duration _audioPosition = Duration.zero;
 
+  // Video Player
+  VideoPlayerController? _videoController;
+  bool _isPlayingVideo = false;
+  bool _isLoadingVideo = false;
+  File? _decryptedVideoFile;
+
   // Neon colors
   static const neonGreen = Color(0xFF00FF7F);
   static const neonRed = Color(0xFFFF4C4C);
@@ -87,6 +95,7 @@ class _ProofDetailScreenState extends State<ProofDetailScreen> {
   @override
   void dispose() {
     _audioPlayer.dispose();
+    _videoController?.dispose();
     super.dispose();
   }
 
@@ -202,6 +211,67 @@ class _ProofDetailScreenState extends State<ProofDetailScreen> {
       }
     } finally {
       if (mounted) setState(() => _isLoadingAudio = false);
+    }
+  }
+
+  Future<void> _playVideo(String url, String iv) async {
+    if (_videoController != null && _videoController!.value.isInitialized) {
+      if (_videoController!.value.isPlaying) {
+        await _videoController!.pause();
+      } else {
+        await _videoController!.play();
+      }
+      setState(() => _isPlayingVideo = _videoController!.value.isPlaying);
+      return;
+    }
+
+    setState(() => _isLoadingVideo = true);
+
+    try {
+      // Check if we already have the decrypted file
+      if (_decryptedVideoFile == null) {
+        final decryptedBytes = await _proofService.downloadAndDecryptVideo(
+          url,
+          iv,
+        );
+
+        if (decryptedBytes == null) throw Exception('Failed to decrypt video');
+
+        final tempDir = await getTemporaryDirectory();
+        _decryptedVideoFile = File(
+          '${tempDir.path}/temp_video_${DateTime.now().millisecondsSinceEpoch}.mp4',
+        );
+        await _decryptedVideoFile!.writeAsBytes(decryptedBytes);
+      }
+
+      _videoController = VideoPlayerController.file(_decryptedVideoFile!);
+      await _videoController!.initialize();
+
+      _videoController!.addListener(() {
+        if (mounted) {
+          setState(() {
+            _isPlayingVideo = _videoController!.value.isPlaying;
+            // Force rebuild for progress bar updates if playing
+            if (_isPlayingVideo) {
+              // This is a bit expensive but ensures smooth progress bar
+              // For better performance, we could use AnimatedBuilder or ValueListenableBuilder
+            }
+          });
+        }
+      });
+
+      await _videoController!.play();
+    } catch (e) {
+      print('Error playing video: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to play video. Decryption error.'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoadingVideo = false);
     }
   }
 
@@ -715,6 +785,170 @@ class _ProofDetailScreenState extends State<ProofDetailScreen> {
                     style: TextStyle(color: Colors.white.withOpacity(0.5)),
                   ),
                 ),
+            ],
+
+            // Video
+            if (proof.videoUrl != null) ...[
+              const SizedBox(height: 24),
+              _buildSectionTitle('Video Evidence', Icons.videocam),
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.white.withOpacity(0.1)),
+                ),
+                child: Column(
+                  children: [
+                    if (_videoController != null &&
+                        _videoController!.value.isInitialized)
+                      ClipRRect(
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(12),
+                        ),
+                        child: AspectRatio(
+                          aspectRatio: _videoController!.value.aspectRatio,
+                          child: VideoPlayer(_videoController!),
+                        ),
+                      ),
+                    if (_videoController != null &&
+                        _videoController!.value.isInitialized)
+                      Container(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                        child: Column(
+                          children: [
+                            // Progress Indicator
+                            VideoProgressIndicator(
+                              _videoController!,
+                              allowScrubbing: true,
+                              colors: VideoProgressColors(
+                                playedColor: neonGreen,
+                                bufferedColor: Colors.white.withOpacity(0.3),
+                                backgroundColor: Colors.white.withOpacity(0.1),
+                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                            ),
+                            const SizedBox(height: 8),
+
+                            // Controls Row
+                            Row(
+                              children: [
+                                // Play/Pause
+                                GestureDetector(
+                                  onTap:
+                                      _isLoadingVideo ||
+                                          proof.encryptionIv == null
+                                      ? null
+                                      : () => _playVideo(
+                                          proof.videoUrl!,
+                                          proof.encryptionIv!,
+                                        ),
+                                  child: CircleAvatar(
+                                    radius: 20,
+                                    backgroundColor: neonGreen.withOpacity(0.2),
+                                    child: _isLoadingVideo
+                                        ? SizedBox(
+                                            width: 20,
+                                            height: 20,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              color: neonGreen,
+                                            ),
+                                          )
+                                        : Icon(
+                                            _isPlayingVideo
+                                                ? Icons.pause
+                                                : Icons.play_arrow,
+                                            color: neonGreen,
+                                            size: 24,
+                                          ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+
+                                // Time / Duration
+                                Expanded(
+                                  child: Text(
+                                    _videoController!.value.isInitialized
+                                        ? '${_formatDuration(_videoController!.value.position)} / ${_formatDuration(_videoController!.value.duration)}'
+                                        : '00:00 / 00:00',
+                                    style: TextStyle(
+                                      color: Colors.white.withOpacity(0.7),
+                                      fontSize: 12,
+                                      fontFeatures: const [
+                                        FontFeature.tabularFigures(),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+
+                                if (proof.encryptionIv == null)
+                                  Tooltip(
+                                    message: 'Decryption key missing',
+                                    child: Icon(
+                                      Icons.error,
+                                      color: neonRed,
+                                      size: 20,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      )
+                    else
+                      // Initial Load Button
+                      Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Row(
+                          children: [
+                            CircleAvatar(
+                              backgroundColor: neonGreen.withOpacity(0.2),
+                              child: IconButton(
+                                icon: _isLoadingVideo
+                                    ? SizedBox(
+                                        width: 20,
+                                        height: 20,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: neonGreen,
+                                        ),
+                                      )
+                                    : Icon(Icons.play_arrow, color: neonGreen),
+                                onPressed:
+                                    _isLoadingVideo ||
+                                        proof.encryptionIv == null
+                                    ? null
+                                    : () => _playVideo(
+                                        proof.videoUrl!,
+                                        proof.encryptionIv!,
+                                      ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                'Tap to load video',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                            if (proof.encryptionIv == null)
+                              Tooltip(
+                                message: 'Decryption key missing',
+                                child: Icon(
+                                  Icons.error,
+                                  color: neonRed,
+                                  size: 20,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ),
             ],
 
             // Audio

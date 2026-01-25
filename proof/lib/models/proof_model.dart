@@ -8,6 +8,7 @@ class ProofModel {
   final double? latitude;
   final double? longitude;
   final List<String> mediaUrls;
+  final String? videoUrl;
   final String? audioUrl;
   final String? textContent;
   final String contentHash;
@@ -25,6 +26,7 @@ class ProofModel {
     this.latitude,
     this.longitude,
     required this.mediaUrls,
+    this.videoUrl,
     this.audioUrl,
     this.textContent,
     required this.contentHash,
@@ -43,9 +45,10 @@ class ProofModel {
       lockedFlag: json['locked_flag'] as bool,
       latitude: json['latitude'] as double?,
       longitude: json['longitude'] as double?,
-      mediaUrls: json['media_urls'] != null 
+      mediaUrls: json['media_urls'] != null
           ? List<String>.from(json['media_urls'] as List)
           : [],
+      videoUrl: json['video_url'] as String?,
       audioUrl: json['audio_url'] as String?,
       textContent: json['text_content'] as String?,
       contentHash: json['content_hash'] as String,
@@ -66,6 +69,7 @@ class ProofModel {
       'latitude': latitude,
       'longitude': longitude,
       'media_urls': mediaUrls,
+      'video_url': videoUrl,
       'audio_url': audioUrl,
       'text_content': textContent,
       'content_hash': contentHash,
@@ -85,6 +89,7 @@ class ProofModel {
     double? latitude,
     double? longitude,
     List<String>? mediaUrls,
+    String? videoUrl,
     String? audioUrl,
     String? textContent,
     String? contentHash,
@@ -102,6 +107,7 @@ class ProofModel {
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
       mediaUrls: mediaUrls ?? this.mediaUrls,
+      videoUrl: videoUrl ?? this.videoUrl,
       audioUrl: audioUrl ?? this.audioUrl,
       textContent: textContent ?? this.textContent,
       contentHash: contentHash ?? this.contentHash,

@@ -194,12 +194,13 @@ class EncryptionService {
     required String description,
     required DateTime timestamp,
     required List<String> mediaUrls,
+    String? videoUrl,
     String? audioUrl,
     String? textContent,
   }) {
     final combined =
         '$title|$description|${timestamp.toIso8601String()}|'
-        '${mediaUrls.join(',')}|${audioUrl ?? ''}|${textContent ?? ''}';
+        '${mediaUrls.join(',')}|${videoUrl ?? ''}|${audioUrl ?? ''}|${textContent ?? ''}';
     return generateHash(combined);
   }
 }

@@ -6,4 +6,5 @@ class SupabaseConfig {
   // Storage bucket names
   static const String mediaStorageBucket = 'proof-media';
   static const String audioStorageBucket = 'proof-audio';
+  static const String videoStorageBucket = 'proof-video';
 }

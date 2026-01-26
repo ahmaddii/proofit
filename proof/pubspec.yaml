@@ -60,6 +60,7 @@ dependencies:
   lottie: ^3.3.2
   video_player: ^2.10.1
   cunning_document_scanner: ^1.4.0
+  flutter_native_splash: ^2.4.7
  
  
  
@@ -74,7 +75,6 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
-  flutter_native_splash: ^2.4.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -92,6 +92,7 @@ flutter:
   - assets/animations/hello.json
   - assets/animations/lock.json
   - assets/animations/PinLock.json
+  - assets/animations/logo.png
   #   - images/a_dot_ham.jpeg
 
   # An image asset can refer to one or more resolution-specific "variants", see
@@ -121,12 +122,27 @@ flutter:
   # see https://flutter.dev/to/font-from-package
 
 flutter_native_splash:
+  # Background color for splash screen
   color: "#0B0B0F"
-  # image: assets/logo.png # Using a placeholder for now, user can replace
-  branding: assets/animations/logo.png
+  
+  # Main logo image - centered and properly sized
+  image: assets/animations/native-logo.png
+  
+  # Dark mode configuration
   color_dark: "#0B0B0F"
-  # image_dark: assets/logo.png
+  image_dark: assets/animations/native-logo.png
+  
+  # Android 12+ specific configuration
   android_12:
+    image: assets/animations/native-logo.png
     color: "#0B0B0F"
-    # icon_background_color: "#0B0B0F"
+    icon_background_color: "#0B0B0F"
+    
+  # Platform configuration
+  android: true
+  ios: true
   web: false
+  
+  # Fullscreen mode
+  fullscreen: true
+  

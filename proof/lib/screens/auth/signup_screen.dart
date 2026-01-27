@@ -164,7 +164,10 @@ class _SignupScreenState extends State<SignupScreen>
         ),
         body: SafeArea(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(AppSizes.paddingLarge),
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSizes.paddingLarge,
+              vertical: 16,
+            ),
             child: FadeTransition(
               opacity: _fadeAnimation,
               child: SlideTransition(
@@ -174,13 +177,13 @@ class _SignupScreenState extends State<SignupScreen>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 10),
 
                       ScaleTransition(
                         scale: _scaleAnimation,
                         child: Center(
                           child: Container(
-                            padding: const EdgeInsets.all(22),
+                            padding: const EdgeInsets.all(20),
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               boxShadow: [
@@ -192,37 +195,37 @@ class _SignupScreenState extends State<SignupScreen>
                             ),
                             child: const Icon(
                               Icons.person_add,
-                              size: 70,
+                              size: 64,
                               color: neonGreen,
                             ),
                           ),
                         ),
                       ),
 
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 20),
 
                       const Text(
                         'Create Account',
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          fontSize: 32,
+                          fontSize: 30,
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
                         ),
                       ),
 
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 6),
 
                       Text(
                         'Sign up to Start Securing Your Evidence',
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          fontSize: 16,
+                          fontSize: 15,
                           color: Colors.white.withOpacity(0.8),
                         ),
                       ),
 
-                      const SizedBox(height: 40),
+                      const SizedBox(height: 32),
 
                       // 🔥 Glassmorphic Card
                       Container(
@@ -243,7 +246,7 @@ class _SignupScreenState extends State<SignupScreen>
                           child: BackdropFilter(
                             filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                             child: Padding(
-                              padding: const EdgeInsets.all(28),
+                              padding: const EdgeInsets.all(24),
                               child: Column(
                                 children: [
                                   TextFormField(
@@ -268,7 +271,7 @@ class _SignupScreenState extends State<SignupScreen>
                                     },
                                   ),
 
-                                  const SizedBox(height: 20),
+                                  const SizedBox(height: 18),
 
                                   TextFormField(
                                     controller: _passwordController,
@@ -306,7 +309,7 @@ class _SignupScreenState extends State<SignupScreen>
                                     },
                                   ),
 
-                                  const SizedBox(height: 20),
+                                  const SizedBox(height: 18),
 
                                   TextFormField(
                                     controller: _confirmPasswordController,
@@ -344,7 +347,7 @@ class _SignupScreenState extends State<SignupScreen>
                                     },
                                   ),
 
-                                  const SizedBox(height: 28),
+                                  const SizedBox(height: 24),
 
                                   Consumer<AuthProvider>(
                                     builder: (_, auth, __) {
@@ -370,8 +373,14 @@ class _SignupScreenState extends State<SignupScreen>
                                             ],
                                           ),
                                           child: auth.isLoading
-                                              ? const CircularProgressIndicator(
-                                                  color: Colors.black,
+                                              ? const SizedBox(
+                                                  height: 24,
+                                                  width: 24,
+                                                  child:
+                                                      CircularProgressIndicator(
+                                                        color: Colors.black,
+                                                        strokeWidth: 3,
+                                                      ),
                                                 )
                                               : const Text(
                                                   AppStrings.signup,
@@ -394,6 +403,75 @@ class _SignupScreenState extends State<SignupScreen>
                       ),
 
                       const SizedBox(height: 20),
+
+                      // Google Sign In Button
+                      Consumer<AuthProvider>(
+                        builder: (_, auth, __) {
+                          return GestureDetector(
+                            onTap: auth.isLoading
+                                ? null
+                                : () async {
+                                    final success = await auth
+                                        .signInWithGoogle();
+                                    if (!mounted) return;
+                                    if (!success) {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            auth.errorMessage ??
+                                                'Google Sign-In failed',
+                                          ),
+                                          backgroundColor: Colors.redAccent,
+                                          behavior: SnackBarBehavior.floating,
+                                        ),
+                                      );
+                                    }
+                                  },
+                            child: Container(
+                              height: 56,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                              ),
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.white.withOpacity(0.1),
+                                    blurRadius: 10,
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Image.asset(
+                                    'assets/animations/google.png',
+                                    height: 22,
+                                    width: 22,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  const Text(
+                                    'Continue with Google',
+                                    style: TextStyle(
+                                      color: Colors.black87,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w600,
+                                      letterSpacing: 0.3,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+
+                      const SizedBox(height: 30),
                     ],
                   ),
                 ),

@@ -8,26 +8,48 @@ import '../models/pin_verification_result.dart';
 class AuthProvider with ChangeNotifier {
   final AuthService _authService = AuthService();
   final PinService _pinService = PinService();
-  
+
   User? _currentUser;
   bool _isLoading = false;
   String? _errorMessage;
+  bool _isOnboardingCompleted = false;
 
   User? get currentUser => _currentUser;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   bool get isAuthenticated => _currentUser != null;
+  bool get isOnboardingCompleted => _isOnboardingCompleted;
 
   AuthProvider() {
     _initializeAuth();
+    _listenToAuthState();
   }
 
   void _initializeAuth() {
     _currentUser = _authService.currentUser;
+    _isOnboardingCompleted = PreferencesService.isOnboardingCompleted();
     if (_currentUser != null) {
-      // Save user ID to preferences
       PreferencesService.setUserId(_currentUser!.id);
     }
+    notifyListeners();
+  }
+
+  void _listenToAuthState() {
+    _authService.authStateChanges.listen((data) {
+      final User? user = data.session?.user;
+      if (_currentUser?.id != user?.id) {
+        _currentUser = user;
+        if (user != null) {
+          PreferencesService.setUserId(user.id);
+        }
+        notifyListeners();
+      }
+    });
+  }
+
+  Future<void> completeOnboarding() async {
+    await PreferencesService.setOnboardingCompleted(true);
+    _isOnboardingCompleted = true;
     notifyListeners();
   }
 
@@ -45,12 +67,11 @@ class AuthProvider with ChangeNotifier {
 
       _currentUser = response.user;
       if (_currentUser != null) {
-        // Save user ID to preferences
         await PreferencesService.setUserId(_currentUser!.id);
       }
       _isLoading = false;
       notifyListeners();
-      
+
       return response.user != null;
     } catch (e) {
       _errorMessage = e.toString();
@@ -73,18 +94,41 @@ class AuthProvider with ChangeNotifier {
       );
 
       _currentUser = response.user;
-      
+
       if (_currentUser != null) {
-        // Save user ID to preferences
         await PreferencesService.setUserId(_currentUser!.id);
-        // Sync PIN from cloud
         await _pinService.syncPinFromCloud();
       }
-      
+
       _isLoading = false;
       notifyListeners();
-      
+
       return response.user != null;
+    } catch (e) {
+      _errorMessage = e.toString();
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // Sign in with Google
+  Future<bool> signInWithGoogle() async {
+    try {
+      _isLoading = true;
+      _errorMessage = null;
+      notifyListeners();
+
+      final result = await _authService.signInWithGoogle();
+
+      // Note: The actual user object update happens via auth state change listener usually,
+      // but for OAuth we might need to rely on the redirect or listener.
+      // The authStateChanges stream in AuthService (or setup in main) handles the session update.
+
+      _isLoading = false;
+      notifyListeners();
+
+      return result;
     } catch (e) {
       _errorMessage = e.toString();
       _isLoading = false;
@@ -98,7 +142,6 @@ class AuthProvider with ChangeNotifier {
     try {
       await _authService.signOut();
       _currentUser = null;
-      // Clear user-specific preferences
       await PreferencesService.clearUserData();
       notifyListeners();
     } catch (e) {
@@ -141,13 +184,12 @@ class AuthProvider with ChangeNotifier {
 
       await _pinService.deletePin();
       await _authService.deleteAccount();
-      
+
       _currentUser = null;
-      // Clear all user data from preferences
       await PreferencesService.clearUserData();
       _isLoading = false;
       notifyListeners();
-      
+
       return true;
     } catch (e) {
       _errorMessage = e.toString();

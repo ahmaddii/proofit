@@ -1,4 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import '../config/supabase_config.dart';
 
 class AuthService {
   final _supabase = Supabase.instance.client;
@@ -46,6 +48,45 @@ class AuthService {
     }
   }
 
+  // Sign in with Google
+  Future<bool> signInWithGoogle() async {
+    try {
+      // Native Google Sign-In
+      // We need to pass the Web Client ID (from Google Cloud Console) as the serverClientId
+      // to get an ID token that Supabase can verify.
+      final GoogleSignIn googleSignIn = GoogleSignIn(
+        serverClientId: SupabaseConfig.googleWebClientId,
+      );
+
+      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+
+      if (googleUser == null) {
+        // User canceled the sign-in
+        return false;
+      }
+
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
+
+      final accessToken = googleAuth.accessToken;
+      final idToken = googleAuth.idToken;
+
+      if (idToken == null) {
+        throw 'No ID Token found.';
+      }
+
+      final response = await _supabase.auth.signInWithIdToken(
+        provider: OAuthProvider.google,
+        idToken: idToken,
+        accessToken: accessToken,
+      );
+
+      return response.user != null;
+    } catch (e) {
+      rethrow;
+    }
+  }
+
   // Sign out
   Future<void> signOut() async {
     try {
@@ -72,7 +113,7 @@ class AuthService {
 
       // Delete user profile and proofs (cascade delete via FK)
       await _supabase.from('user_profiles').delete().eq('id', userId);
-      
+
       // Note: Actual user deletion from auth.users requires admin API
       // For now, just sign out
       await signOut();

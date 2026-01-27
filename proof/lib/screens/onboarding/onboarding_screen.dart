@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import '../../services/preferences_service.dart';
 import '../../utils/constants.dart';
 import '../home/home_dashboard.dart';
-import '../auth/login_screen.dart';
+import 'package:provider/provider.dart';
+import '../../providers/auth_provider.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -54,17 +54,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   Future<void> _finishOnboarding() async {
-    await PreferencesService.setOnboardingCompleted(true);
-    if (mounted) {
-      // Force navigation to LoginScreen after onboarding, regardless of auth state (usually logged out)
-      // Since AuthWrapper handles routing, we can just pop or replace with AuthWrapper
-      // But user requested "go sign up or login screen".
-      // AuthWrapper will do this automatically if not logged in.
-      // But let's be explicit.
-      Navigator.of(
-        context,
-      ).pushReplacement(MaterialPageRoute(builder: (_) => const LoginScreen()));
-    }
+    // Use AuthProvider to complete onboarding context.read to avoid rebuild loop if watch used incorrectly
+    await context.read<AuthProvider>().completeOnboarding();
+
+    // No manual navigation needed - AuthWrapper will handle it
   }
 
   @override

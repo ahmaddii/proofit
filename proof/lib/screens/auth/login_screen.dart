@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:proof/screens/home/home_dashboard.dart';
 import 'package:provider/provider.dart';
 import 'dart:ui';
 
@@ -43,7 +42,7 @@ class _LoginScreenState extends State<LoginScreen>
 
     _fadeController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1200),
+      duration: const Duration(milliseconds: 600), // Reduced from 1200ms
     );
     _slideController = AnimationController(
       vsync: this,
@@ -170,7 +169,10 @@ class _LoginScreenState extends State<LoginScreen>
         backgroundColor: Colors.black,
         body: SafeArea(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(AppSizes.paddingLarge),
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSizes.paddingLarge,
+              vertical: 16,
+            ),
             child: FadeTransition(
               opacity: _fadeAnimation,
               child: SlideTransition(
@@ -240,7 +242,7 @@ class _LoginScreenState extends State<LoginScreen>
                           child: BackdropFilter(
                             filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                             child: Padding(
-                              padding: const EdgeInsets.all(28),
+                              padding: const EdgeInsets.all(24),
                               child: Column(
                                 children: [
                                   // Email Field
@@ -347,6 +349,75 @@ class _LoginScreenState extends State<LoginScreen>
                         ),
                       ),
 
+                      const SizedBox(height: 20),
+
+                      // Google Sign In Button
+                      Consumer<AuthProvider>(
+                        builder: (_, auth, __) {
+                          return GestureDetector(
+                            onTap: auth.isLoading
+                                ? null
+                                : () async {
+                                    final success = await auth
+                                        .signInWithGoogle();
+                                    if (!mounted) return;
+                                    if (!success) {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            auth.errorMessage ??
+                                                'Google Sign-In failed',
+                                          ),
+                                          backgroundColor: Colors.redAccent,
+                                          behavior: SnackBarBehavior.floating,
+                                        ),
+                                      );
+                                    }
+                                  },
+                            child: Container(
+                              height: 56,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                              ),
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.white.withOpacity(0.1),
+                                    blurRadius: 10,
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Image.asset(
+                                    'assets/animations/google.png',
+                                    height: 22,
+                                    width: 22,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  const Text(
+                                    'Continue with Google',
+                                    style: TextStyle(
+                                      color: Colors.black87,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w600,
+                                      letterSpacing: 0.3,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+
                       const SizedBox(height: 30),
 
                       // Sign Up Link
@@ -385,6 +456,7 @@ class _LoginScreenState extends State<LoginScreen>
                           ),
                         ],
                       ),
+                      const SizedBox(height: 20),
                     ],
                   ),
                 ),

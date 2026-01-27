@@ -108,8 +108,8 @@ class _AuthWrapperState extends State<AuthWrapper> {
   @override
   void initState() {
     super.initState();
-    // Keep splash for a minimum duration or wait for initialization
-    Future.delayed(const Duration(seconds: 3), () {
+    // Keep splash for a minimum duration matches animation time in SplashScreen
+    Future.delayed(const Duration(milliseconds: 2800), () {
       if (mounted) {
         setState(() => _showSplash = false);
       }
@@ -118,43 +118,26 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
   @override
   Widget build(BuildContext context) {
+    // 1. Always show splash first until timer completes
     if (_showSplash) {
       return const SplashScreen();
     }
 
-    // Check if onboarding is completed
-    if (!PreferencesService.isOnboardingCompleted()) {
-      return const OnboardingScreen();
-    }
+    // 2. Consume AuthProvider state for routing
+    return Consumer<AuthProvider>(
+      builder: (context, auth, _) {
+        // If still loading auth state, you might want to show splash or loader
+        // But assuming defaults are safe (false/null)
 
-    return StreamBuilder<AuthState>(
-      stream: Supabase.instance.client.auth.onAuthStateChange,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          // If we are still waiting but splash is done (unlikely with 3s delay),
-          // show a loader.
-          return const Scaffold(
-            backgroundColor: Colors.black,
-            body: Center(
-              child: CircularProgressIndicator(
-                color: Color(0xFF00FF7F), // Neon green
-              ),
-            ),
-          );
+        if (!auth.isOnboardingCompleted) {
+          return const OnboardingScreen();
         }
 
-        final session = snapshot.data?.session;
-
-        // If session exists but no user ID stored, store it
-        if (session != null && PreferencesService.getUserId() == null) {
-          PreferencesService.setUserId(session.user.id);
-        }
-
-        if (session != null) {
+        if (auth.isAuthenticated) {
           return const HomeDashboard();
-        } else {
-          return const LoginScreen();
         }
+
+        return const LoginScreen();
       },
     );
   }

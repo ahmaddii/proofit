@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../utils/constants.dart';
 import '../auth/login_screen.dart';
+import '../proof/pin_verification_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -238,10 +239,35 @@ class _SettingsScreenState extends State<SettingsScreen>
     );
 
     if (confirmed == true && mounted) {
-      final success = await context.read<AuthProvider>().deleteAccount();
+      // Create a local reference to the Navigator to avoid context usage across async gaps
+      final navigator = Navigator.of(context);
+      final authProvider = context.read<AuthProvider>();
+
+      // Verify PIN before deletion if setup
+      final hasPin = await authProvider.hasPinSetup();
+
+      if (mounted && hasPin) {
+        // Import PinVerificationScreen first
+        // Note: Assuming strict import ordering, ensure this import exists at top of file:
+        // import '../proof/pin_verification_screen.dart';
+
+        final pinVerified = await navigator.push<bool>(
+          MaterialPageRoute(
+            builder: (_) => PinVerificationScreen(
+              onSuccess: () {}, // Handled by await result
+            ),
+          ),
+        );
+
+        if (pinVerified != true) return;
+      }
+
+      if (!mounted) return;
+
+      final success = await authProvider.deleteAccount();
       if (mounted) {
         if (success) {
-          Navigator.of(context).pushAndRemoveUntil(
+          navigator.pushAndRemoveUntil(
             MaterialPageRoute(builder: (_) => const LoginScreen()),
             (route) => false,
           );

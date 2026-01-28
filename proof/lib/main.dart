@@ -6,11 +6,15 @@ import 'providers/auth_provider.dart';
 import 'providers/proof_provider.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/home/home_dashboard.dart';
-import 'utils/constants.dart';
+
 import 'services/preferences_service.dart';
 import 'screens/splash/splash_screen.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'screens/onboarding/onboarding_screen.dart';
+import 'screens/proof/pin_verification_screen.dart';
+
+// Create a global navigator key to enable navigation without context
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -38,6 +42,7 @@ class ProofItApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => ProofProvider()),
       ],
       child: MaterialApp(
+        navigatorKey: navigatorKey,
         title: 'ProofIt',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
@@ -89,9 +94,84 @@ class ProofItApp extends StatelessWidget {
             labelLarge: GoogleFonts.poppins(color: Colors.white),
           ),
         ),
+        builder: (context, child) {
+          return AppLifecycleManager(child: child!);
+        },
         home: const AuthWrapper(),
       ),
     );
+  }
+}
+
+class AppLifecycleManager extends StatefulWidget {
+  final Widget child;
+
+  const AppLifecycleManager({super.key, required this.child});
+
+  @override
+  State<AppLifecycleManager> createState() => _AppLifecycleManagerState();
+}
+
+class _AppLifecycleManagerState extends State<AppLifecycleManager>
+    with WidgetsBindingObserver {
+  bool _isLocked = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) async {
+    if (state == AppLifecycleState.resumed) {
+      final authProvider = context.read<AuthProvider>();
+
+      // Check if user is logged in and has PIN setup
+      // Note: We need to handle async check carefully in lifecycle method
+      if (authProvider.isAuthenticated && !_isLocked) {
+        // We need to re-verify existence of PIN because user might have cleared it
+        // Check local storage synchronously if possible, or assume state is roughly correct.
+        // authProvider.hasPinSetup() is async.
+
+        final hasPin = await authProvider.hasPinSetup();
+
+        if (hasPin && !_isLocked && mounted) {
+          _isLocked = true;
+          navigatorKey.currentState
+              ?.push(
+                MaterialPageRoute(
+                  builder: (_) => PinVerificationScreen(
+                    isAppLock: true,
+                    onSuccess: () {
+                      _isLocked = false;
+                    },
+                  ),
+                ),
+              )
+              .then((_) {
+                // Ensure lock state is cleared if popped (though back button is disabled)
+                // This handles potential programmatic pops or edge cases
+                if (mounted) {
+                  // We rely on onSuccess to clear _isLocked for success path.
+                  // If popped without success (shouldn't happen due to PopScope), keep locked?
+                  // Actually, if generic pop happens, we should probably check if verified.
+                }
+              });
+        }
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return widget.child;
   }
 }
 

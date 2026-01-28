@@ -253,7 +253,7 @@ class _SplashScreenState extends State<SplashScreen>
                           vertical: 2,
                         ),
                         child: const Text(
-                          'BLOCKCHAIN DOCUMENT SECURITY',
+                          'BlockChain Based Document Security',
                           style: TextStyle(
                             fontFamily: 'Poppins',
                             fontSize: 11,

@@ -23,7 +23,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       color: Color(0xFF00FF7F), // Neon Green
     ),
     OnboardingPageData(
-      title: 'Military-Grade Security',
+      title: 'Military Grade Security',
       description: 'Your evidence is encrypted instantly with AES-256 GCM.',
       icon: Icons.shield_outlined,
       color: Color(0xFF00FF7F),

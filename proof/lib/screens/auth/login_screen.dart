@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'dart:ui';
-
 import '../../providers/auth_provider.dart';
 import '../../utils/constants.dart';
 import '../../services/preferences_service.dart';
@@ -361,7 +360,28 @@ class _LoginScreenState extends State<LoginScreen>
                                     final success = await auth
                                         .signInWithGoogle();
                                     if (!mounted) return;
-                                    if (!success) {
+
+                                    if (success) {
+                                      final hasPinSetup = await auth
+                                          .hasPinSetup();
+                                      if (!mounted) return;
+
+                                      if (!hasPinSetup) {
+                                        Navigator.of(context).pushReplacement(
+                                          MaterialPageRoute(
+                                            builder: (_) =>
+                                                const PinSetupScreen(),
+                                          ),
+                                        );
+                                      } else {
+                                        Navigator.of(context).pushReplacement(
+                                          MaterialPageRoute(
+                                            builder: (_) =>
+                                                const HomeDashboard(),
+                                          ),
+                                        );
+                                      }
+                                    } else {
                                       ScaffoldMessenger.of(
                                         context,
                                       ).showSnackBar(

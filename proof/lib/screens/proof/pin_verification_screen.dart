@@ -9,13 +9,15 @@ import '../../models/pin_verification_result.dart';
 import '../../services/preferences_service.dart';
 
 class PinVerificationScreen extends StatefulWidget {
-  final String proofId;
+  final String? proofId;
   final VoidCallback onSuccess;
+  final bool isAppLock;
 
   const PinVerificationScreen({
     super.key,
-    required this.proofId,
+    this.proofId,
     required this.onSuccess,
+    this.isAppLock = false,
   });
 
   @override
@@ -192,351 +194,364 @@ class _PinVerificationScreenState extends State<PinVerificationScreen>
   Widget build(BuildContext context) {
     final isFrozen = _freezeRemainingSeconds > 0;
 
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        title: const Text(
-          'Enter PIN',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w600,
-            fontSize: 20,
-          ),
-        ),
+    return PopScope(
+      canPop: !widget.isAppLock && !_isVerifying,
+      child: Scaffold(
         backgroundColor: Colors.black,
-        elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.white),
-      ),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          return FadeTransition(
-            opacity: _fadeAnimation,
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  minHeight: constraints.maxHeight - 48, // Adjust for padding
-                ),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      SizedBox(
-                        height: MediaQuery.of(context).size.height * 0.1,
-                      ),
-                      // Animated Lock Icon
-                      if (isFrozen)
-                        ScaleTransition(
-                          scale: _pulseAnimation,
-                          child: Container(
+        appBar: AppBar(
+          title: Text(
+            widget.isAppLock ? 'Unlock App' : 'Enter PIN',
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w600,
+              fontSize: 20,
+            ),
+          ),
+          automaticallyImplyLeading: !widget.isAppLock,
+          backgroundColor: Colors.black,
+          elevation: 0,
+          iconTheme: const IconThemeData(color: Colors.white),
+        ),
+        body: LayoutBuilder(
+          builder: (context, constraints) {
+            return FadeTransition(
+              opacity: _fadeAnimation,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minHeight: constraints.maxHeight - 48, // Adjust for padding
+                  ),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        SizedBox(
+                          height: MediaQuery.of(context).size.height * 0.1,
+                        ),
+                        // Animated Lock Icon
+                        if (isFrozen)
+                          ScaleTransition(
+                            scale: _pulseAnimation,
+                            child: Container(
+                              padding: const EdgeInsets.all(32),
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(color: neonRed, width: 3),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: neonRed.withOpacity(0.5),
+                                    blurRadius: 30,
+                                    spreadRadius: 5,
+                                  ),
+                                ],
+                              ),
+                              child: Icon(Icons.lock, size: 64, color: neonRed),
+                            ),
+                          )
+                        else
+                          Container(
                             padding: const EdgeInsets.all(32),
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              border: Border.all(color: neonRed, width: 3),
+                              border: Border.all(color: neonGreen, width: 3),
                               boxShadow: [
                                 BoxShadow(
-                                  color: neonRed.withOpacity(0.5),
+                                  color: neonGreen.withOpacity(0.5),
                                   blurRadius: 30,
                                   spreadRadius: 5,
                                 ),
                               ],
                             ),
-                            child: Icon(Icons.lock, size: 64, color: neonRed),
+                            child: Icon(
+                              Icons.lock_outline,
+                              size: 64,
+                              color: neonGreen,
+                            ),
                           ),
-                        )
-                      else
-                        Container(
-                          padding: const EdgeInsets.all(32),
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(color: neonGreen, width: 3),
-                            boxShadow: [
-                              BoxShadow(
-                                color: neonGreen.withOpacity(0.5),
-                                blurRadius: 30,
-                                spreadRadius: 5,
-                              ),
-                            ],
-                          ),
-                          child: Icon(
-                            Icons.lock_outline,
-                            size: 64,
-                            color: neonGreen,
+
+                        const SizedBox(height: 40),
+
+                        // Title
+                        Text(
+                          isFrozen
+                              ? 'Account Frozen'
+                              : (widget.isAppLock
+                                    ? 'Unlock App'
+                                    : AppStrings.enterPin),
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                            color: isFrozen ? neonRed : Colors.white,
                           ),
                         ),
 
-                      const SizedBox(height: 40),
+                        const SizedBox(height: 32),
 
-                      // Title
-                      Text(
-                        isFrozen ? 'Account Frozen' : AppStrings.enterPin,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                          color: isFrozen ? neonRed : Colors.white,
-                        ),
-                      ),
-
-                      const SizedBox(height: 32),
-
-                      // Freeze message and countdown
-                      if (isFrozen) ...[
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(24),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(16),
-                            color: neonRed.withOpacity(0.1),
-                            border: Border.all(color: neonRed.withOpacity(0.3)),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              Text(
-                                'Too many failed attempts',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                  color: neonRed,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Please wait before trying again',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.white.withOpacity(0.7),
-                                ),
-                              ),
-                              const SizedBox(height: 24),
-                              // Circular countdown
-                              SizedBox(
-                                width: 120,
-                                height: 120,
-                                child: Stack(
-                                  alignment: Alignment.center,
-                                  children: [
-                                    SizedBox(
-                                      width: 120,
-                                      height: 120,
-                                      child: CircularProgressIndicator(
-                                        value: _freezeRemainingSeconds / 300,
-                                        strokeWidth: 6,
-                                        backgroundColor: Colors.white
-                                            .withOpacity(0.1),
-                                        valueColor:
-                                            AlwaysStoppedAnimation<Color>(
-                                              neonRed,
-                                            ),
-                                      ),
-                                    ),
-                                    Column(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        Text(
-                                          '${_freezeRemainingSeconds ~/ 60}:${(_freezeRemainingSeconds % 60).toString().padLeft(2, '0')}',
-                                          style: TextStyle(
-                                            fontSize: 32,
-                                            fontWeight: FontWeight.bold,
-                                            color: neonRed,
-                                          ),
-                                        ),
-                                        Text(
-                                          'remaining',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: Colors.white.withOpacity(
-                                              0.6,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ] else ...[
-                        // Remaining attempts warning
-                        if (_remainingAttempts < 3 && _remainingAttempts > 0)
+                        // Freeze message and countdown
+                        if (isFrozen) ...[
                           Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 20,
-                              vertical: 12,
-                            ),
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(24),
                             decoration: BoxDecoration(
-                              color: neonOrange.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(16),
+                              color: neonRed.withOpacity(0.1),
                               border: Border.all(
-                                color: neonOrange.withOpacity(0.3),
+                                color: neonRed.withOpacity(0.3),
                               ),
                             ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              mainAxisAlignment: MainAxisAlignment.center,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
-                                Icon(
-                                  Icons.warning_amber_rounded,
-                                  color: neonOrange,
-                                  size: 20,
-                                ),
-                                const SizedBox(width: 8),
                                 Text(
-                                  '${_remainingAttempts} attempt${_remainingAttempts > 1 ? 's' : ''} remaining',
+                                  'Too many failed attempts',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    color: neonRed,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Please wait before trying again',
+                                  textAlign: TextAlign.center,
                                   style: TextStyle(
                                     fontSize: 14,
-                                    color: neonOrange,
-                                    fontWeight: FontWeight.w600,
+                                    color: Colors.white.withOpacity(0.7),
+                                  ),
+                                ),
+                                const SizedBox(height: 24),
+                                // Circular countdown
+                                SizedBox(
+                                  width: 120,
+                                  height: 120,
+                                  child: Stack(
+                                    alignment: Alignment.center,
+                                    children: [
+                                      SizedBox(
+                                        width: 120,
+                                        height: 120,
+                                        child: CircularProgressIndicator(
+                                          value: _freezeRemainingSeconds / 300,
+                                          strokeWidth: 6,
+                                          backgroundColor: Colors.white
+                                              .withOpacity(0.1),
+                                          valueColor:
+                                              AlwaysStoppedAnimation<Color>(
+                                                neonRed,
+                                              ),
+                                        ),
+                                      ),
+                                      Column(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          Text(
+                                            '${_freezeRemainingSeconds ~/ 60}:${(_freezeRemainingSeconds % 60).toString().padLeft(2, '0')}',
+                                            style: TextStyle(
+                                              fontSize: 32,
+                                              fontWeight: FontWeight.bold,
+                                              color: neonRed,
+                                            ),
+                                          ),
+                                          Text(
+                                            'remaining',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.white.withOpacity(
+                                                0.6,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ],
                             ),
                           ),
-
-                        const SizedBox(height: 32),
-
-                        // PIN input with shake animation
-                        AnimatedBuilder(
-                          animation: _shakeAnimation,
-                          builder: (context, child) {
-                            return Transform.translate(
-                              offset: Offset(
-                                _shakeAnimation.value *
-                                    (_shakeController.status ==
-                                            AnimationStatus.forward
-                                        ? 1
-                                        : -1),
-                                0,
+                        ] else ...[
+                          // Remaining attempts warning
+                          if (_remainingAttempts < 3 && _remainingAttempts > 0)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                                vertical: 12,
                               ),
-                              child: child,
-                            );
-                          },
-                          child: TextField(
-                            controller: _pinController,
-                            keyboardType: TextInputType.number,
-                            obscureText: true,
-                            maxLength: 6,
-                            autofocus: !isFrozen,
-                            enabled: !isFrozen && !_isVerifying,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 32,
-                              letterSpacing: 12,
-                              fontWeight: FontWeight.bold,
-                            ),
-                            inputFormatters: [
-                              FilteringTextInputFormatter.digitsOnly,
-                            ],
-                            decoration: InputDecoration(
-                              hintText: '● ● ● ● ● ●',
-                              hintStyle: TextStyle(
-                                color: Colors.white.withOpacity(0.2),
-                                letterSpacing: 12,
-                              ),
-                              filled: true,
-                              fillColor: Colors.white.withOpacity(0.05),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(16),
-                                borderSide: BorderSide.none,
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(16),
-                                borderSide: BorderSide(
-                                  color: Colors.white.withOpacity(0.1),
+                              decoration: BoxDecoration(
+                                color: neonOrange.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: neonOrange.withOpacity(0.3),
                                 ),
                               ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(16),
-                                borderSide: BorderSide(
-                                  color: neonGreen,
-                                  width: 2,
-                                ),
-                              ),
-                              disabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(16),
-                                borderSide: BorderSide(
-                                  color: Colors.white.withOpacity(0.05),
-                                ),
-                              ),
-                              counterText: '',
-                            ),
-                            onSubmitted: isFrozen ? null : (_) => _verifyPin(),
-                          ),
-                        ),
-
-                        const SizedBox(height: 32),
-
-                        // Verify button
-                        SizedBox(
-                          width: double.infinity,
-                          height: 56,
-                          child: ElevatedButton(
-                            onPressed: (isFrozen || _isVerifying)
-                                ? null
-                                : _verifyPin,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: neonGreen,
-                              foregroundColor: Colors.black,
-                              disabledBackgroundColor: Colors.white.withOpacity(
-                                0.1,
-                              ),
-                              disabledForegroundColor: Colors.white.withOpacity(
-                                0.3,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              elevation: 0,
-                            ),
-                            child: _isVerifying
-                                ? const SizedBox(
-                                    height: 24,
-                                    width: 24,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 3,
-                                      valueColor: AlwaysStoppedAnimation<Color>(
-                                        Colors.black,
-                                      ),
-                                    ),
-                                  )
-                                : Text(
-                                    isFrozen ? 'Frozen' : 'Verify PIN',
-                                    style: const TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.warning_amber_rounded,
+                                    color: neonOrange,
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    '${_remainingAttempts} attempt${_remainingAttempts > 1 ? 's' : ''} remaining',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: neonOrange,
+                                      fontWeight: FontWeight.w600,
                                     ),
                                   ),
+                                ],
+                              ),
+                            ),
+
+                          const SizedBox(height: 32),
+
+                          // PIN input with shake animation
+                          AnimatedBuilder(
+                            animation: _shakeAnimation,
+                            builder: (context, child) {
+                              return Transform.translate(
+                                offset: Offset(
+                                  _shakeAnimation.value *
+                                      (_shakeController.status ==
+                                              AnimationStatus.forward
+                                          ? 1
+                                          : -1),
+                                  0,
+                                ),
+                                child: child,
+                              );
+                            },
+                            child: TextField(
+                              controller: _pinController,
+                              keyboardType: TextInputType.number,
+                              obscureText: true,
+                              maxLength: 6,
+                              autofocus: !isFrozen,
+                              enabled: !isFrozen && !_isVerifying,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 32,
+                                letterSpacing: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              inputFormatters: [
+                                FilteringTextInputFormatter.digitsOnly,
+                              ],
+                              decoration: InputDecoration(
+                                hintText: '● ● ● ● ● ●',
+                                hintStyle: TextStyle(
+                                  color: Colors.white.withOpacity(0.2),
+                                  letterSpacing: 12,
+                                ),
+                                filled: true,
+                                fillColor: Colors.white.withOpacity(0.05),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                  borderSide: BorderSide.none,
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                  borderSide: BorderSide(
+                                    color: Colors.white.withOpacity(0.1),
+                                  ),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                  borderSide: BorderSide(
+                                    color: neonGreen,
+                                    width: 2,
+                                  ),
+                                ),
+                                disabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                  borderSide: BorderSide(
+                                    color: Colors.white.withOpacity(0.05),
+                                  ),
+                                ),
+                                counterText: '',
+                              ),
+                              onSubmitted: isFrozen
+                                  ? null
+                                  : (_) => _verifyPin(),
+                            ),
+                          ),
+
+                          const SizedBox(height: 32),
+
+                          // Verify button
+                          SizedBox(
+                            width: double.infinity,
+                            height: 56,
+                            child: ElevatedButton(
+                              onPressed: (isFrozen || _isVerifying)
+                                  ? null
+                                  : _verifyPin,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: neonGreen,
+                                foregroundColor: Colors.black,
+                                disabledBackgroundColor: Colors.white
+                                    .withOpacity(0.1),
+                                disabledForegroundColor: Colors.white
+                                    .withOpacity(0.3),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                elevation: 0,
+                              ),
+                              child: _isVerifying
+                                  ? const SizedBox(
+                                      height: 24,
+                                      width: 24,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 3,
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                              Colors.black,
+                                            ),
+                                      ),
+                                    )
+                                  : Text(
+                                      isFrozen ? 'Frozen' : 'Verify PIN',
+                                      style: const TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                            ),
+                          ),
+                        ],
+
+                        const SizedBox(height: 24),
+
+                        // Info text
+                        Text(
+                          widget.isAppLock
+                              ? 'Enter your PIN to verify your identity'
+                              : 'Enter your 6-digit PIN to unlock this proof',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.white.withOpacity(0.5),
                           ),
                         ),
                       ],
-
-                      const SizedBox(height: 24),
-
-                      // Info text
-                      Text(
-                        'Enter your 6-digit PIN to unlock this proof',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.white.withOpacity(0.5),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }

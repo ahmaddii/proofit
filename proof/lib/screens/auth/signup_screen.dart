@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../utils/constants.dart';
 import 'pin_setup_screen.dart';
+import '../home/home_dashboard.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -414,7 +415,28 @@ class _SignupScreenState extends State<SignupScreen>
                                     final success = await auth
                                         .signInWithGoogle();
                                     if (!mounted) return;
-                                    if (!success) {
+
+                                    if (success) {
+                                      final hasPinSetup = await auth
+                                          .hasPinSetup();
+                                      if (!mounted) return;
+
+                                      if (!hasPinSetup) {
+                                        Navigator.of(context).pushReplacement(
+                                          MaterialPageRoute(
+                                            builder: (_) =>
+                                                const PinSetupScreen(),
+                                          ),
+                                        );
+                                      } else {
+                                        Navigator.of(context).pushReplacement(
+                                          MaterialPageRoute(
+                                            builder: (_) =>
+                                                const HomeDashboard(),
+                                          ),
+                                        );
+                                      }
+                                    } else {
                                       ScaffoldMessenger.of(
                                         context,
                                       ).showSnackBar(

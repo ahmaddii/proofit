@@ -121,9 +121,13 @@ class AuthProvider with ChangeNotifier {
 
       final result = await _authService.signInWithGoogle();
 
-      // Note: The actual user object update happens via auth state change listener usually,
-      // but for OAuth we might need to rely on the redirect or listener.
-      // The authStateChanges stream in AuthService (or setup in main) handles the session update.
+      if (result) {
+        _currentUser = _authService.currentUser;
+        if (_currentUser != null) {
+          await PreferencesService.setUserId(_currentUser!.id);
+          await _pinService.syncPinFromCloud();
+        }
+      }
 
       _isLoading = false;
       notifyListeners();

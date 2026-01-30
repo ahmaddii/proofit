@@ -7,7 +7,10 @@ import 'providers/proof_provider.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/home/home_dashboard.dart';
 
+import 'package:timezone/data/latest_all.dart' as tz;
 import 'services/preferences_service.dart';
+import 'services/notification_service.dart';
+
 import 'screens/splash/splash_screen.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'screens/onboarding/onboarding_screen.dart';
@@ -19,8 +22,14 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Initialize Timezone
+  tz.initializeTimeZones();
+
   // Initialize SharedPreferences
   await PreferencesService.init();
+
+  // Initialize NotificationService
+  await NotificationService().init();
 
   // Initialize Supabase
   await Supabase.initialize(

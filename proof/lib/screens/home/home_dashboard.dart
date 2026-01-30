@@ -11,6 +11,7 @@ import '../settings/settings_screen.dart';
 import '../auth/pin_setup_screen.dart';
 import '../../widgets/locked_proof_dialog.dart';
 import 'package:lottie/lottie.dart';
+import '../../services/notification_service.dart';
 
 // ================= COLORS =================
 const Color kBgBlack = Color(0xFF0B0B0F);
@@ -56,6 +57,18 @@ class _HomeDashboardState extends State<HomeDashboard>
 
     _fadeController.forward();
     _scaleController.forward();
+
+    // Initialize Notifications
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initNotifications();
+    });
+  }
+
+  Future<void> _initNotifications() async {
+    final service = NotificationService();
+    await service.requestPermissions();
+    // Schedule daily reminder for 8:00 PM
+    await service.scheduleDailyReminder(20, 0);
   }
 
   @override
@@ -102,6 +115,20 @@ class _HomeDashboardState extends State<HomeDashboard>
 
     if (result == true && context.mounted) {
       debugPrint('HomeDashboard: Proof created successfully, showing dialog');
+
+      // Show modern in-app notification
+      NotificationService.showInAppSuccess(
+        context,
+        '🛡️ Proof Secured!',
+        'Your Evidence Has Been Encrypted And Saved.',
+      );
+      // ALSO show a system notification (WhatsApp style) as requested
+      NotificationService().showSystemNotification(
+        id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+        title: 'Proof Secured',
+        body: '🛡️ Your Evidence Has Been Successfully Encrypted and Stored',
+      );
+
       _showSuccessDialog(context);
       debugPrint('HomeDashboard: Dialog shown');
     }

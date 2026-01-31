@@ -16,7 +16,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'screens/onboarding/onboarding_screen.dart';
 import 'screens/proof/pin_verification_screen.dart';
 
-// Create a global navigator key to enable navigation without context
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
@@ -52,7 +51,7 @@ class ProofItApp extends StatelessWidget {
       ],
       child: MaterialApp(
         navigatorKey: navigatorKey,
-        title: 'ProofIt',
+        title: 'ProofIT',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
           brightness: Brightness.dark,

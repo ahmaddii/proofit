@@ -67,8 +67,13 @@ class _HomeDashboardState extends State<HomeDashboard>
   Future<void> _initNotifications() async {
     final service = NotificationService();
     await service.requestPermissions();
-    // Schedule daily reminder for 8:00 PM
+    // Schedule daily reminder for 8:00 PM (existing)
     await service.scheduleDailyReminder(20, 0);
+
+    // Schedule weekly alarm for 8:00 AM (new)
+    // Using current weekday to repeat every 7 days
+    final now = DateTime.now();
+    await service.scheduleWeeklyReminder(now.weekday, 8, 0);
   }
 
   @override

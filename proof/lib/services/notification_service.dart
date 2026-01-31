@@ -146,4 +146,41 @@ class NotificationService {
     }
     return scheduledDate;
   }
+
+  // Schedule a weekly reminder
+  Future<void> scheduleWeeklyReminder(
+    int dayOfWeek,
+    int hour,
+    int minute,
+  ) async {
+    await flutterLocalNotificationsPlugin.zonedSchedule(
+      id: 1,
+      title: 'Weekly Proof Reminder',
+      body: 'It is time for your weekly proof check-in.',
+      scheduledDate: _nextInstanceOfDayOfWeekAndTime(dayOfWeek, hour, minute),
+      notificationDetails: const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'proofit_weekly_reminder',
+          'Weekly Reminders',
+          channelDescription: 'Reminds you weekly to create a proof',
+          importance: Importance.max,
+          priority: Priority.high,
+        ),
+      ),
+      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
+    );
+  }
+
+  tz.TZDateTime _nextInstanceOfDayOfWeekAndTime(
+    int dayOfWeek,
+    int hour,
+    int minute,
+  ) {
+    tz.TZDateTime scheduledDate = _nextInstanceOfTime(hour, minute);
+    while (scheduledDate.weekday != dayOfWeek) {
+      scheduledDate = scheduledDate.add(const Duration(days: 1));
+    }
+    return scheduledDate;
+  }
 }

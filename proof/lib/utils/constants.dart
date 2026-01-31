@@ -23,7 +23,7 @@ class AppSizes {
 }
 
 class AppStrings {
-  static const String appName = 'ProofIt';
+  static const String appName = 'ProofIT';
   static const String tagline =
       'Secure your evidence with blockchain-like integrity';
   static const String email = 'Email';

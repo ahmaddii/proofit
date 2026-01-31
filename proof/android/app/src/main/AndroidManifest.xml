@@ -16,7 +16,7 @@
 
 
     <application
-        android:label="proof"
+        android:label="ProofIT"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

@@ -17,7 +17,7 @@ import java.io.FileInputStream
     android {
         namespace = "com.ahmad.proofit"
         compileSdk = flutter.compileSdkVersion
-        // ndkVersion = flutter.ndkVersion
+        ndkVersion = flutter.ndkVersion
 
         compileOptions {
             isCoreLibraryDesugaringEnabled = true

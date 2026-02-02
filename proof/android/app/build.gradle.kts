@@ -17,7 +17,7 @@ import java.io.FileInputStream
     android {
         namespace = "com.ahmad.proofit"
         compileSdk = flutter.compileSdkVersion
-        ndkVersion = flutter.ndkVersion
+        ndkVersion = "27.0.12077973"
 
         compileOptions {
             isCoreLibraryDesugaringEnabled = true
@@ -27,6 +27,12 @@ import java.io.FileInputStream
 
         kotlinOptions {
             jvmTarget = JavaVersion.VERSION_11.toString()
+        }
+
+        packagingOptions {
+            jniLibs {
+               // keepDebugSymbols += "**/*.so"
+            }
         }
 
         defaultConfig {
@@ -52,6 +58,14 @@ import java.io.FileInputStream
         buildTypes {
             release {
                 signingConfig = signingConfigs.getByName("release")
+                // Enables code shrinking, obfuscation, and optimization for only
+                // your project's release build type.
+                isMinifyEnabled = true
+                isShrinkResources = true
+                proguardFiles(
+                    getDefaultProguardFile("proguard-android-optimize.txt"),
+                    "proguard-rules.pro"
+                )
             }
         }
     }

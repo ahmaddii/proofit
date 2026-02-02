@@ -19,24 +19,31 @@ import 'screens/proof/pin_verification_screen.dart';
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+  try {
+    WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Timezone
-  tz.initializeTimeZones();
+    // Initialize Timezone
+    tz.initializeTimeZones();
 
-  // Initialize SharedPreferences
-  await PreferencesService.init();
+    // Initialize SharedPreferences
+    await PreferencesService.init();
 
-  // Initialize NotificationService
-  await NotificationService().init();
+    // Initialize NotificationService
+    await NotificationService().init();
 
-  // Initialize Supabase
-  await Supabase.initialize(
-    url: SupabaseConfig.supabaseUrl,
-    anonKey: SupabaseConfig.supabaseAnonKey,
-  );
-
-  runApp(const ProofItApp());
+    // Initialize Supabase
+    await Supabase.initialize(
+      url: SupabaseConfig.supabaseUrl,
+      anonKey: SupabaseConfig.supabaseAnonKey,
+    );
+  } catch (e, stackTrace) {
+    debugPrint('Initialization failed: $e\n$stackTrace');
+    // Consider reporting this to a crash reporting service
+  } finally {
+    // Always run the app, even if initialization failed
+    // This prevents the splash screen from hanging indefinitely
+    runApp(const ProofItApp());
+  }
 }
 
 class ProofItApp extends StatelessWidget {

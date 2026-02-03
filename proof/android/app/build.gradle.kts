@@ -44,6 +44,7 @@ import java.io.FileInputStream
             targetSdk = flutter.targetSdkVersion
             versionCode = flutter.versionCode
             versionName = flutter.versionName
+            multiDexEnabled = true
         }
 
         signingConfigs {
@@ -61,7 +62,7 @@ import java.io.FileInputStream
                 // Enables code shrinking, obfuscation, and optimization for only
                 // your project's release build type.
                 isMinifyEnabled = true
-                isShrinkResources = true
+                isShrinkResources = false
                 proguardFiles(
                     getDefaultProguardFile("proguard-android-optimize.txt"),
                     "proguard-rules.pro"
@@ -76,5 +77,6 @@ flutter {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+    implementation("androidx.multidex:multidex:2.0.1")
 }
 

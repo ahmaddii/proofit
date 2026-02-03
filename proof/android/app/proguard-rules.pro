@@ -11,10 +11,26 @@
 
 # Supabase & Json Serialization
 -keep class com.supabase.** { *; }
+-keep class io.supabase.** { *; }
 -keepattributes Signature
 -keepattributes *Annotation*
 -keep class sun.misc.Unsafe { *; }
 -keep class com.google.gson.** { *; }
+
+# Google Sign In
+-keepattributes *Annotation*
+-keep class com.google.android.gms.common.** { *; }
+-keep class com.google.android.gms.auth.** { *; }
+-keep class com.google.android.gms.tasks.** { *; }
+
+# Flutter Secure Storage
+-keep class com.it_nomads.fluttersecurestorage.** { *; }
+
+# SharedPreferences
+-keep class com.example.shared_preferences.** { *; }
+
+# Geolocator
+-keep class com.baseflow.geolocator.** { *; }
 
 # Prevent R8 from stripping native methods
 -keepclasseswithmembernames class * {

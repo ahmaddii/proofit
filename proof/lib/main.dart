@@ -6,6 +6,7 @@ import 'providers/auth_provider.dart';
 import 'providers/proof_provider.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/home/home_dashboard.dart';
+import 'dart:async';
 
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'services/preferences_service.dart';
@@ -19,31 +20,38 @@ import 'screens/proof/pin_verification_screen.dart';
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
-  try {
-    WidgetsFlutterBinding.ensureInitialized();
+  // Wrap entire app in error handler
+  runZonedGuarded(
+    () async {
+      try {
+        WidgetsFlutterBinding.ensureInitialized();
 
-    // Initialize Timezone
-    tz.initializeTimeZones();
+        // Initialize Timezone
+        tz.initializeTimeZones();
 
-    // Initialize SharedPreferences
-    await PreferencesService.init();
+        // Initialize SharedPreferences
+        await PreferencesService.init();
 
-    // Initialize NotificationService
-    await NotificationService().init();
+        // Initialize NotificationService
+        await NotificationService().init();
 
-    // Initialize Supabase
-    await Supabase.initialize(
-      url: SupabaseConfig.supabaseUrl,
-      anonKey: SupabaseConfig.supabaseAnonKey,
-    );
-  } catch (e, stackTrace) {
-    debugPrint('Initialization failed: $e\n$stackTrace');
-    // Consider reporting this to a crash reporting service
-  } finally {
-    // Always run the app, even if initialization failed
-    // This prevents the splash screen from hanging indefinitely
-    runApp(const ProofItApp());
-  }
+        // Initialize Supabase
+        await Supabase.initialize(
+          url: SupabaseConfig.supabaseUrl,
+          anonKey: SupabaseConfig.supabaseAnonKey,
+        );
+
+        debugPrint('✅ All services initialized successfully');
+      } catch (e, stackTrace) {
+        debugPrint('❌ Initialization failed: $e\n$stackTrace');
+      } finally {
+        runApp(const ProofItApp());
+      }
+    },
+    (error, stack) {
+      debugPrint('❌ Uncaught error: $error\n$stack');
+    },
+  );
 }
 
 class ProofItApp extends StatelessWidget {
@@ -110,6 +118,45 @@ class ProofItApp extends StatelessWidget {
           ),
         ),
         builder: (context, child) {
+          // Add global error boundary
+          ErrorWidget.builder = (FlutterErrorDetails details) {
+            debugPrint('❌ Widget error: ${details.exception}');
+            return Material(
+              color: Colors.black,
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.error_outline,
+                      color: Colors.red,
+                      size: 48,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Something went wrong',
+                      style: GoogleFonts.poppins(
+                        color: Colors.white,
+                        fontSize: 18,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    ElevatedButton(
+                      onPressed: () {
+                        navigatorKey.currentState?.pushAndRemoveUntil(
+                          MaterialPageRoute(
+                            builder: (_) => const AuthWrapper(),
+                          ),
+                          (route) => false,
+                        );
+                      },
+                      child: const Text('Restart'),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          };
           return AppLifecycleManager(child: child!);
         },
         home: const AuthWrapper(),
@@ -146,40 +193,28 @@ class _AppLifecycleManagerState extends State<AppLifecycleManager>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) async {
     if (state == AppLifecycleState.resumed) {
-      final authProvider = context.read<AuthProvider>();
+      try {
+        final authProvider = context.read<AuthProvider>();
 
-      // Check if user is logged in and has PIN setup
-      // Note: We need to handle async check carefully in lifecycle method
-      if (authProvider.isAuthenticated && !_isLocked) {
-        // We need to re-verify existence of PIN because user might have cleared it
-        // Check local storage synchronously if possible, or assume state is roughly correct.
-        // authProvider.hasPinSetup() is async.
+        if (authProvider.isAuthenticated && !_isLocked) {
+          final hasPin = await authProvider.hasPinSetup();
 
-        final hasPin = await authProvider.hasPinSetup();
-
-        if (hasPin && !_isLocked && mounted) {
-          _isLocked = true;
-          navigatorKey.currentState
-              ?.push(
-                MaterialPageRoute(
-                  builder: (_) => PinVerificationScreen(
-                    isAppLock: true,
-                    onSuccess: () {
-                      _isLocked = false;
-                    },
-                  ),
+          if (hasPin && !_isLocked && mounted) {
+            _isLocked = true;
+            navigatorKey.currentState?.push(
+              MaterialPageRoute(
+                builder: (_) => PinVerificationScreen(
+                  isAppLock: true,
+                  onSuccess: () {
+                    _isLocked = false;
+                  },
                 ),
-              )
-              .then((_) {
-                // Ensure lock state is cleared if popped (though back button is disabled)
-                // This handles potential programmatic pops or edge cases
-                if (mounted) {
-                  // We rely on onSuccess to clear _isLocked for success path.
-                  // If popped without success (shouldn't happen due to PopScope), keep locked?
-                  // Actually, if generic pop happens, we should probably check if verified.
-                }
-              });
+              ),
+            );
+          }
         }
+      } catch (e) {
+        debugPrint('❌ Error in lifecycle state change: $e');
       }
     }
   }
@@ -203,27 +238,64 @@ class _AuthWrapperState extends State<AuthWrapper> {
   @override
   void initState() {
     super.initState();
-    // Keep splash for a minimum duration matches animation time in SplashScreen
-    Future.delayed(const Duration(milliseconds: 2800), () {
+    _initializeApp();
+  }
+
+  Future<void> _initializeApp() async {
+    try {
+      // Wait for splash animation
+      await Future.delayed(const Duration(milliseconds: 2800));
+
+      // Wait for AuthProvider to initialize
+      if (mounted) {
+        final authProvider = context.read<AuthProvider>();
+
+        // Wait until provider is initialized (max 5 seconds)
+        int attempts = 0;
+        while (!authProvider.isInitialized && attempts < 50) {
+          await Future.delayed(const Duration(milliseconds: 100));
+          attempts++;
+        }
+
+        debugPrint(
+          '✅ Auth ready - Onboarding: ${authProvider.isOnboardingCompleted}, Auth: ${authProvider.isAuthenticated}',
+        );
+      }
+    } catch (e) {
+      debugPrint('❌ Auth wrapper initialization error: $e');
+    } finally {
       if (mounted) {
         setState(() => _showSplash = false);
       }
-    });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    // 1. Always show splash first until timer completes
+    // Show splash screen
     if (_showSplash) {
       return const SplashScreen();
     }
 
-    // 2. Consume AuthProvider state for routing
+    // Main navigation logic
     return Consumer<AuthProvider>(
       builder: (context, auth, _) {
-        // If still loading auth state, you might want to show splash or loader
-        // But assuming defaults are safe (false/null)
+        // Show loader if not initialized yet (safety check)
+        if (!auth.isInitialized) {
+          debugPrint('⏳ Waiting for auth initialization...');
+          return const Scaffold(
+            backgroundColor: Colors.black,
+            body: Center(
+              child: CircularProgressIndicator(color: Color(0xFF00FF7F)),
+            ),
+          );
+        }
 
+        debugPrint(
+          '🔄 AuthWrapper rebuild - Onboarding: ${auth.isOnboardingCompleted}, Auth: ${auth.isAuthenticated}',
+        );
+
+        // Navigate based on auth state
         if (!auth.isOnboardingCompleted) {
           return const OnboardingScreen();
         }
